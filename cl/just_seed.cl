@@ -182,7 +182,7 @@ static void hmac_sha512(unsigned char *keyInput, unsigned int keyLen,
                         unsigned char *sha512_result) {
   uchar key[256] = {0};
 
-  printf("\nhmac_sha512 start keyLen = %d, passLen = %d\n", keyLen, passLen);
+  // printf("\nhmac_sha512 start keyLen = %d, passLen = %d\n", keyLen, passLen);
 
   // printf("\nkeyInput = ");
   for (int i = 0; i < keyLen; i++) {
@@ -243,115 +243,22 @@ static void test_hmac_sha512() {
   print_seed(&seed);
 }
 
-static void test_seed() {
+static void PBKDF2(unsigned char *words, unsigned int wordsLen,
+                   unsigned char *salt, unsigned int saltLen,
+                   unsigned char *seed) {
 
   uchar key[256] = {0};
   uchar sha512_result[64] = {0};
-  uchar seed[64] = {0};
-
-  uchar seeds[256] = "rhythm bulk shoulder shy mix finger fog artefact update "
-                     "obtain fresh clown tent inspire answer unaware teach "
-                     "action two captain street mammal rather fossil";
-  uchar pass[12] = {109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1};
-
-  int len = 153;
-  int passLen = 12;
-
-  printf("\nstart\n");
-
-  for (int i = 0; i < len; i++) {
-    key[i] = seeds[i];
-    printf("%c", key[i]);
-  }
-
-  printf("|end\n");
-
-  // if len > 128
-  if (len > 128) {
-    sha512(&key, len, &sha512_result);
-    len = 64;
-    for (int i = 0; i < len; i++) {
-      key[i] = sha512_result[i];
-    }
-  }
-
-  uchar ipad_key[128];
-  uchar opad_key[128];
-  for (int x = 0; x < 128; x++) {
-    ipad_key[x] = 0x36;
-    opad_key[x] = 0x5c;
-  }
-
-  for (int x = 0; x < len; x++) {
-    ipad_key[x] = ipad_key[x] ^ key[x];
-    opad_key[x] = opad_key[x] ^ key[x];
-  }
-
-  uchar key_previous_concat[256] = {0};
-  uchar salt[8] = {109, 110, 101, 109, 111, 110, 105, 99};
-
-  for (int x = 0; x < 128; x++) {
-    key_previous_concat[x] = ipad_key[x];
-  }
-  for (int x = 0; x < passLen; x++) {
-    key_previous_concat[x + 128] = pass[x];
-  }
-
-  sha512(&key_previous_concat, 128 + passLen, &sha512_result);
-  for (int x = 0; x < 64; x++) {
-    printf("%x", sha512_result[x]);
-    if (x < 64 - 1) {
-      printf(", ");
-    }
-  }
-
-  printf("\n\n");
-  copy_pad_previous(&opad_key, &sha512_result, &key_previous_concat);
-  sha512(&key_previous_concat, 192, &sha512_result);
-
-  for (int x = 0; x < 64; x++) {
-    printf("%x", sha512_result[x]);
-    if (x < 64 - 1) {
-      printf(", ");
-    }
-  }
-
-  xor_seed_with_round(&seed, &sha512_result);
-
-  for (int x = 1; x < 2048; x++) {
-    copy_pad_previous(&ipad_key, &sha512_result, &key_previous_concat);
-    sha512(&key_previous_concat, 192, &sha512_result);
-    copy_pad_previous(&opad_key, &sha512_result, &key_previous_concat);
-    sha512(&key_previous_concat, 192, &sha512_result);
-    xor_seed_with_round(&seed, &sha512_result);
-    print_seed(&seed);
-  }
-
-  // printf("\nseed = \n");
-  print_seed(&seed);
-}
-
-static void PBKDF2() {
-
-  uchar key[256] = {0};
-  uchar sha512_result[64] = {0};
-  uchar seed[64] = {0};
   uchar tmp[64] = {0};
-
-  uchar seeds[256] = "rhythm bulk shoulder shy mix finger fog artefact update "
-                     "obtain fresh clown tent inspire answer unaware teach "
-                     "action two captain street mammal rather fossil";
-  uchar pass[12] = {109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1};
 
   int len = 155;
   int hLen = 20;
   int dkLen = 64;
-  int passLen = 12;
 
   printf("\nstart\n");
 
-  for (int i = 0; i < len; i++) {
-    key[i] = seeds[i];
+  for (int i = 0; i < wordsLen; i++) {
+    key[i] = words[i];
     printf("%c", key[i]);
   }
 
@@ -359,23 +266,34 @@ static void PBKDF2() {
 
   for (int j = 0; j < 2048; j++) {
     if (j == 0) {
-      hmac_sha512(&key, len, &pass, passLen, &sha512_result);
-      printf("j = %d \n", j);
-      print_seed(&sha512_result);
+      hmac_sha512(&key, len, salt, saltLen, &sha512_result);
+      // printf("j = %d \n", j);
+      // print_seed(sha512_result);
 
     } else {
       hmac_sha512(&key, len, &tmp, 64, &sha512_result);
-      printf("j = %d \n", j);
+      // printf("j = %d \n", j);
     }
     for (int i = 0; i < 64; i++) {
       tmp[i] = sha512_result[i];
     }
-    xor_seed_with_round(&seed, &sha512_result);
+    xor_seed_with_round(seed, &sha512_result);
 
     // print_seed(&seed);
   }
 
-  printf("last out \n");
+  // printf("last out \n");
+  // print_seed(seed);
+}
+
+static void test_PBKDF2() {
+  uchar seed[64] = {0};
+  uchar words[256] = "rhythm bulk shoulder shy mix finger fog artefact update "
+                     "obtain fresh clown tent inspire answer unaware teach "
+                     "action two captain street mammal rather fossil";
+  uchar pass[12] = {109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1};
+  PBKDF2(&words, 155, &pass, 12, &seed);
+  // printf("\nseed = \n");
   print_seed(&seed);
 }
 
@@ -508,7 +426,7 @@ __kernel void just_seed(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
   // test_sha512(); //较短数据测试
   // test_sha512_long(&mnemonic, mnemonic_start_hi);
   // test_seed();
-  PBKDF2();
+  test_PBKDF2();
 
   // test_hmac_sha512();
   // testSize();
