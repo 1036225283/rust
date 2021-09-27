@@ -1,5 +1,16 @@
 
+static void test_keccak_256() {
+  unsigned char out[32] = {0};
+  unsigned char in[256] = "testing";
+  keccak_256(&out, 32, &in, 7);
+  printf("\n\ntest keccak\n\n");
 
+  for (int i = 0; i < 32; i++) {
+    printf("%x ", out[i]);
+  }
+
+  printf("\n\n");
+}
 static void PBKDF2(unsigned char *words, unsigned int wordsLen,
                    unsigned char *salt, unsigned int saltLen,
                    unsigned char *seed) {
@@ -54,7 +65,8 @@ __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
                      "action two captain street mammal rather fossil";
   uchar pass[12] = {109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1};
   PBKDF2(&words, 155, &pass, 12, &seed);
-  print_seed(&seed); // ulong mnemonic_lo = mnemonic_start_lo + idx;
+  print_seed(&seed);
+  // ulong mnemonic_lo = mnemonic_start_lo + idx;
   // ulong mnemonic_hi = mnemonic_start_hi;
 
   // uchar bytes[16];
@@ -125,12 +137,13 @@ __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
 
   new_master_from_seed(network, &seed, &master_private);
 
-  // printf("\nmaster private key = \n");
-  // for (int i = 0; i <= 32; i++) {
-  //   printf("%x", master_private.private_key.key[i]);
-  // }
+  printf("\nmaster private key = \n");
+  for (int i = 0; i <= 32; i++) {
+    printf("%x", master_private.private_key.key[i]);
+  }
 
   uchar pub_key[64] = {0};
+  uchar address[32] = {0};
   extended_private_key_t target_key;
   extended_public_key_t target_public_key;
   hardened_private_child_from_private(&master_private, &target_key, 44);
@@ -139,15 +152,21 @@ __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
   normal_private_child_from_private(&target_key, &target_key, 0);
   normal_private_child_from_private(&target_key, &target_key, 0);
   public_from_private(&target_key, &target_public_key);
+
+  printf("\n\npub_key = \n");
   for (int i = 0; i < 64; i++) {
     pub_key[i] = target_public_key.public_key.key.data[i];
+    printf("%x", pub_key[i]);
   }
-  // sha256(&pub_key, 64, &pub_key);
+
+  unsigned char out[32] = {0};
+  unsigned char in[256] = "testing";
+  keccak_256(&address, 32, &pub_key, 64);
 
   printf("\n\n last public key = \n");
 
-  for (int i = 0; i < 64; i++) {
-    printf("%x,", pub_key[i]);
+  for (int i = 12; i < 32; i++) {
+    printf("%x,", address[i]);
   }
 
   uchar target_address[25] = {0x05, 0xAD, 0xA1, 0x2B, 0x11, 0x3D, 0x9B,
