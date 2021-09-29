@@ -162,10 +162,10 @@ void public_from_private(extended_private_key_t *priv,
   memcpy(&pub->parent_fingerprint, &priv->parent_fingerprint, 4);
   memcpy(&pub->chain_code, &priv->chain_code, 32);
   secp256k1_ec_pubkey_create(&pub->public_key.key, &priv->private_key.key);
-  printf("\n\npublic key = \n");
-  for (int i = 0; i < 64; i++) {
-    printf("%x,", pub->public_key.key.data[i]);
-  }
+  // printf("\n\npublic key = \n");
+  // for (int i = 0; i < 64; i++) {
+  //   printf("%x,", pub->public_key.key.data[i]);
+  // }
 }
 
 void serialized_public_key(extended_public_key_t *pub, uchar *serialized_key) {
@@ -294,8 +294,8 @@ void hardened_private_child_from_private(extended_private_key_t *parent,
   child->child_number = child_number;
   child->private_key = sk;
   memcpy_offset(&child->chain_code, &hmacsha512_result, 32, 32);
-  printf("\n\nhardened private child key = \n");
-  for (int i = 0; i < 32; i++) {
-    printf("%x,", child->private_key.key[i]);
-  }
+  // printf("\n\nhardened private child key = \n");
+  // for (int i = 0; i < 32; i++) {
+  //   printf("%x,", child->private_key.key[i]);
+  // }
 }

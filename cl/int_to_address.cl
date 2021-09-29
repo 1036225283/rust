@@ -11,6 +11,117 @@ static void test_keccak_256() {
 
   printf("\n\n");
 }
+
+// 测试提取index
+static void int_to_mnemonic(uchar *bytes32) {
+
+  unsigned char out[32] = {0};
+  unsigned char in[256] = "testing";
+
+  // ulong mnemonic_lo = mnemonic_start_lo + idx;
+  ulong mnemonic_hi = 123456755;
+
+  uchar a = 1;     // 00000001
+  uint16 b = 1;    // 00000010
+  uint16 c = 2047; // 00000010
+  b = (b << 12) | b;
+  printf("this is test a|b = %x %d", b, b);
+
+  // 16个字节共16*8=128位
+  // 128位+校检和4位 = 132位
+  // 将数据分散到128也就是8个字节,是为了计算校检和
+  // 根据32个字节,按照11位提取index
+  uchar mnemonic_hash[32];
+
+  printf("\n\nthe mnemonic_hash = \n");
+
+  sha256(bytes32, 32, &mnemonic_hash);
+
+  uchar checksum = 2;
+
+  // 计算每个单词的索引,共24个单词
+  ushort indices[24] = {0};
+
+  uint index = 1;
+  indices[0] = (bytes32[0] << 8 | bytes32[1]) >> 5;        // 8+3
+  indices[1] = ((bytes32[1] & 63) << 8 | bytes32[2]) >> 2; // 5+6
+
+  printf("\n bytes32[0].start = %x\n", bytes32[0]);
+  printf("indices[0] = %x\n", bytes32[index]);
+  printf("indices[0] = %x\n", (bytes32[1] & 63));
+  printf("indices[0] = %x\n", (bytes32[1] & 63) | bytes32[2]);
+  printf("indices[0] = %x\n", ((bytes32[1] & 63) | bytes32[2]) >> 2);
+  printf("bytes32[0].end = %x\n", bytes32[index]);
+  printf("indices[0].end = %d\n", indices[index]);
+
+  indices[2] =
+      ((bytes32[2] & 3) << 16 | bytes32[3] << 8 | bytes32[4]) >> 7; // 3+8
+  indices[3] = ((bytes32[4] & 127) << 8 | bytes32[5]) >> 4;         //
+  indices[4] = ((bytes32[5] & 15) << 8 | bytes32[6]) >> 1;
+  indices[5] = ((bytes32[6] & 1) << 16 | bytes32[7] << 8 | bytes32[8]) >> 6;
+  indices[6] = ((bytes32[8] & 63) << 8 | bytes32[9]) >> 3;
+  indices[7] = (bytes32[9] & 7) << 8 | bytes32[10];
+
+  // 重复操作,序号不一样
+  indices[8] = (bytes32[11] << 8 | bytes32[12]) >> 5;
+  indices[9] = ((bytes32[12] & 63) << 8 | bytes32[13]) >> 2;
+  indices[10] = ((bytes32[13] & 3) << 16 | bytes32[14] << 8 | bytes32[15]) >> 7;
+  indices[11] = ((bytes32[15] & 127) << 8 | bytes32[16]) >> 4;
+  indices[12] = ((bytes32[16] & 15) << 8 | bytes32[17]) >> 1;
+  indices[13] = ((bytes32[17] & 1) << 16 | bytes32[18] << 8 | bytes32[19]) >> 6;
+  indices[14] = ((bytes32[19] & 63) << 8 | bytes32[20]) >> 3;
+  indices[15] = (bytes32[20] & 7) << 8 | bytes32[21];
+
+  // 重复操作,序号不一样
+  indices[16] = (bytes32[22] << 8 | bytes32[23]) >> 5;
+  indices[17] = ((bytes32[23] & 63) << 8 | bytes32[24]) >> 2;
+  indices[18] = ((bytes32[24] & 3) << 16 | bytes32[25] << 8 | bytes32[26]) >> 7;
+  indices[19] = ((bytes32[26] & 127) << 8 | bytes32[27]) >> 4;
+  indices[20] = ((bytes32[27] & 15) << 8 | bytes32[28]) >> 1;
+  indices[21] = ((bytes32[28] & 1) << 16 | bytes32[29] << 8 | bytes32[30]) >> 6;
+  indices[22] = ((bytes32[30] & 63) << 8 | bytes32[31]) >> 3;
+  indices[23] = (bytes32[31] << 8 | bytes32[23]) >> 5;
+  indices[23] = ((bytes32[31] & 7) << 8 | mnemonic_hash[0]);
+
+  uchar mnemonic[256] = {0};
+  uchar mnemonic_length =
+      11 + word_lengths[indices[0]] + word_lengths[indices[1]] +
+      word_lengths[indices[2]] + word_lengths[indices[3]] +
+      word_lengths[indices[4]] + word_lengths[indices[5]] +
+      word_lengths[indices[6]] + word_lengths[indices[7]] +
+      word_lengths[indices[8]] + word_lengths[indices[9]] +
+      word_lengths[indices[10]] + word_lengths[indices[11]] +
+      word_lengths[indices[12]] + word_lengths[indices[13]] +
+      word_lengths[indices[14]] + word_lengths[indices[15]] +
+      word_lengths[indices[16]] + word_lengths[indices[17]] +
+      word_lengths[indices[18]] + word_lengths[indices[19]] +
+      word_lengths[indices[20]] + word_lengths[indices[21]] +
+      word_lengths[indices[22]] + word_lengths[indices[23]];
+  int mnemonic_index = 0;
+
+  // 拼接助记词
+  for (int i = 0; i < 24; i++) {
+    int word_index = indices[i];
+    int word_length = word_lengths[word_index];
+
+    for (int j = 0; j < word_length; j++) {
+      mnemonic[mnemonic_index] = words[word_index][j];
+      mnemonic_index++;
+    }
+    mnemonic[mnemonic_index] = 32;
+    mnemonic_index++;
+  }
+  mnemonic[mnemonic_index - 1] = 0;
+
+  printf("\nmnemonic_word\n");
+
+  for (int i = 0; i < mnemonic_index; i++) {
+    printf("%c", mnemonic[i]);
+  }
+
+  printf("\nmnemonic_word\n");
+}
+
 static void PBKDF2(unsigned char *words, unsigned int wordsLen,
                    unsigned char *salt, unsigned int saltLen,
                    unsigned char *seed) {
@@ -168,6 +279,28 @@ __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
   for (int i = 12; i < 32; i++) {
     printf("%x,", address[i]);
   }
+
+  printf("\n\nthe input mnemonic = \n");
+
+  uchar test[32] = {0};
+  for (int i = 0; i < 32; i++) {
+    test[i] = target_mnemonic[i];
+    printf("%x,", test[i]);
+  }
+
+  uchar mnemonic_hash[32];
+
+  printf("\n\nthe mnemonic_hash = \n");
+
+  sha256(&test, 32, &mnemonic_hash);
+  for (int i = 0; i < 32; i++) {
+    printf("%x", mnemonic_hash[i]);
+  }
+  printf("\nmnemonic_hash\n");
+
+  uchar checksum = (mnemonic_hash[0] >> 8) & ((1 << 8) - 1);
+  printf("\nhecksum = %x\n", checksum);
+  int_to_mnemonic(&test);
 
   uchar target_address[25] = {0x05, 0xAD, 0xA1, 0x2B, 0x11, 0x3D, 0x9B,
                               0x19, 0x61, 0x47, 0x57, 0xD1, 0x9F, 0xC0,

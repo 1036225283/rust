@@ -19,6 +19,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs;
+use std::ops::Index;
 use std::ptr::null;
 use std::str;
 
@@ -34,11 +35,18 @@ struct WorkResponse {
     batch_size: u64,
 }
 
+struct WorkResponse2 {
+    arr: Vec<u64>,
+}
 struct Work {
     start_hi: u64,
     start_lo: u64,
     batch_size: u64,
     offset: u128,
+}
+
+struct Work2 {
+    arr: Vec<u64>,
 }
 
 fn sweep_btc(mnemonic: String) {
@@ -135,6 +143,39 @@ fn get_work() -> Work {
         .to_string(),
     )
     .unwrap();
+
+    let work_response: WorkResponse = response.json().unwrap();
+
+    let mut start: u128 = 0;
+    let mut start_shift = 128;
+
+    for idx in &work_response.indices {
+        start_shift -= 11;
+        start = start | (idx << start_shift);
+    }
+
+    start += work_response.offset;
+    let start_lo: u64 = ((start << 64) >> 64) as u64;
+    let start_hi: u64 = (start >> 64) as u64;
+
+    return Work {
+        start_lo: start_lo,
+        start_hi: start_hi,
+        batch_size: work_response.batch_size,
+        offset: work_response.offset,
+    };
+}
+
+fn get_entity() -> Work {
+    let response = reqwest::blocking::get(
+        &format!(
+            "{}/hello?secret={}",
+            WORK_SERVER_URL.to_string(),
+            WORK_SERVER_SECRET.to_string()
+        )
+        .to_string(),
+    )
+    .unwrap();
     let work_response: WorkResponse = response.json().unwrap();
 
     let mut start: u128 = 0;
@@ -204,7 +245,14 @@ fn mnemonic_gpu(
 
         // let mut target_mnemonic = vec![0u8; 120];
         // let mut target_mnemonic = "banana high chronic sphere train medal evil ten good strike frequent daring then tower senior poverty face crack purpose appear quit shield palm boost".as_bytes().to_vec();
-        let mut target_mnemonic = "rhythm bulk shoulder shy mix finger fog artefact update obtain fresh clown tent inspire answer unaware teach action two captain street mammal rather fossil".as_bytes().to_vec();
+        // let mut target_mnemonic = "rhythm bulk shoulder shy mix finger fog artefact update obtain fresh clown tent inspire answer unaware teach action two captain street mammal rather fossil".as_bytes().to_vec();
+
+        let target_mnemonic =
+            hex::decode("abab62b8e558c744b0c68872dcc56a83f992692ab900dcebfe779fcaa6157e17")
+                .expect("msg");
+        // let target_mnemonic =
+        //     hex::decode("179e5af5ef66e5da5049cd3de0258c5339a722094e0fdbbbe0e96f148ae80924")
+        //         .expect("msg");
         let mut mnemonic_found = vec![0u8; 1];
 
         let mnemonic_hi: cl_ulong = target_mnemonic.len() as u64;
@@ -349,14 +397,64 @@ fn main() {
     println!("start test just_seed");
     // just_seed::test();
 
+    // let work: Work = get_entity();
+
     // test();
     device_ids.into_par_iter().for_each(move |device_id| {
         mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
     });
+
+    // test_bit();
 }
 
+// 根据助记词生成向量
+// 根据向量生成助记词
 fn test() {
     println!("hello = {}", words[1]);
+}
+
+// 创建32位数组
+fn crate_byte() -> Vec<u8> {
+    let mut bytes = [0u8; 32];
+    bytes.to_vec()
+}
+
+// 测试位操作
+fn test_bit() {
+    let mut bytes = [0u8; 32];
+    // let ok = hex::decode("a686d128f4a65574902e5c4c2d795d33c51cd7b822c1cc8014a6ce56939f4d62").expect("msg");
+    let ok =
+        hex::decode("1a28c7918ab3e1c75571ba16b7a6e689b718a1326c6e89132ed376c4237fd4").expect("msg");
+    // println!("ok = {:?}", ok);
+    println!("ok = {:?}", ok);
+    let mut test: u16 = 1;
+    // test = test << 1;
+    test = test | ok[0] as u16;
+    println!("test = {:?}", test);
+    println!("test = {:#b}", test); //输出二进制
+    println!("test = {:b}", test); //输出二进制
+
+    println!("");
+    let mut i = 0;
+    while i < 32 {
+        print!("{:10b} ", ok[i]); //输出二进制,b代表二进制,8代表填充长度为8位
+        i = i + 1;
+    }
+
+    let x = 42;
+    let y = "a686d128f4a65574902e5c4c2d795d33c51cd7b822c1cc8014a6ce56939f4d62"
+        .as_bytes()
+        .to_vec();
+
+    let d = "a686d128f4a65574902e5c4c2d795d33c51cd7b822c1cc8014a6ce56939f4d62"
+        .as_bytes()
+        .to_vec();
+    let z = String::from_utf8(y);
+    println!("y = {:?}", z);
+    println!("y = {:x}", d[0]);
+
+    let a = std::format!("{:#X}", x);
+    println!("{}", &a);
 }
 
 // 18 kB
