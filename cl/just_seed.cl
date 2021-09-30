@@ -243,7 +243,7 @@ static void test_hmac_sha512() {
   print_seed(&seed);
 }
 
-static void PBKDF2(unsigned char *words, unsigned int wordsLen,
+static void PBKDF2(unsigned char *input_word, unsigned int input_word_len,
                    unsigned char *salt, unsigned int saltLen,
                    unsigned char *seed) {
 
@@ -257,8 +257,8 @@ static void PBKDF2(unsigned char *words, unsigned int wordsLen,
 
   printf("\nstart\n");
 
-  for (int i = 0; i < wordsLen; i++) {
-    key[i] = words[i];
+  for (int i = 0; i < input_word_len; i++) {
+    key[i] = input_word[i];
     printf("%c", key[i]);
   }
 
@@ -288,11 +288,12 @@ static void PBKDF2(unsigned char *words, unsigned int wordsLen,
 
 static void test_PBKDF2() {
   uchar seed[64] = {0};
-  uchar words[256] = "rhythm bulk shoulder shy mix finger fog artefact update "
-                     "obtain fresh clown tent inspire answer unaware teach "
-                     "action two captain street mammal rather fossil";
+  uchar tmp_word[256] =
+      "rhythm bulk shoulder shy mix finger fog artefact update "
+      "obtain fresh clown tent inspire answer unaware teach "
+      "action two captain street mammal rather fossil";
   uchar pass[12] = {109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1};
-  PBKDF2(&words, 155, &pass, 12, &seed);
+  PBKDF2(&tmp_word, 155, &pass, 12, &seed);
   // printf("\nseed = \n");
   print_seed(&seed);
 }

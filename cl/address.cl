@@ -127,13 +127,13 @@ void new_master_from_seed(uchar network, uchar *seed,
   uchar hmacsha512_result[64] = {0};
   hmac_sha512(&key, 12, seed, 64, &hmacsha512_result);
 
-  for (int i = 0; i < 12; i++) {
-    printf("%c", key[i]);
-  }
-  printf("\n\nmaster private key = \n");
-  for (int i = 0; i <= 64; i++) {
-    printf("%x,", hmacsha512_result[i]);
-  }
+  // for (int i = 0; i < 12; i++) {
+  //   printf("%c", key[i]);
+  // }
+  // printf("\n\nmaster private key = \n");
+  // for (int i = 0; i <= 64; i++) {
+  //   printf("%x,", hmacsha512_result[i]);
+  // }
 
   private_key_t pkey;
   pkey.compressed = false;
@@ -148,10 +148,10 @@ void new_master_from_seed(uchar network, uchar *seed,
   master->child_number = 0;
   master->private_key = pkey;
   memcpy_offset(&master->chain_code, &hmacsha512_result, 32, 32);
-  printf("\n\nchain code = \n");
-  for (int i = 0; i <= 32; i++) {
-    printf("%x,", master->chain_code[i]);
-  }
+  // printf("\n\nchain code = \n");
+  // for (int i = 0; i <= 32; i++) {
+  //   printf("%x,", master->chain_code[i]);
+  // }
 }
 
 void public_from_private(extended_private_key_t *priv,
@@ -261,10 +261,10 @@ void normal_private_child_from_private(extended_private_key_t *parent,
   child->child_number = normal_child_number;
   child->private_key = sk;
   memcpy_offset(&child->chain_code, &hmacsha512_result, 32, 32);
-  printf("\n\nnormal child key = \n");
-  for (int i = 0; i < 32; i++) {
-    printf("%x,", child->private_key.key[i]);
-  }
+  // printf("\n\nnormal child key = \n");
+  // for (int i = 0; i < 32; i++) {
+  //   printf("%x,", child->private_key.key[i]);
+  // }
 }
 
 void hardened_private_child_from_private(extended_private_key_t *parent,
