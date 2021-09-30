@@ -83,22 +83,8 @@ static void int_to_mnemonic(uchar *bytes32, uchar *mnemonic,
   indices[20] = ((bytes32[27] & 15) << 8 | bytes32[28]) >> 1;
   indices[21] = ((bytes32[28] & 1) << 16 | bytes32[29] << 8 | bytes32[30]) >> 6;
   indices[22] = ((bytes32[30] & 63) << 8 | bytes32[31]) >> 3;
-  indices[23] = (bytes32[31] << 8 | bytes32[23]) >> 5;
   indices[23] = ((bytes32[31] & 7) << 8 | mnemonic_hash[0]);
 
-  uchar mnemonic_length =
-      11 + word_lengths[indices[0]] + word_lengths[indices[1]] +
-      word_lengths[indices[2]] + word_lengths[indices[3]] +
-      word_lengths[indices[4]] + word_lengths[indices[5]] +
-      word_lengths[indices[6]] + word_lengths[indices[7]] +
-      word_lengths[indices[8]] + word_lengths[indices[9]] +
-      word_lengths[indices[10]] + word_lengths[indices[11]] +
-      word_lengths[indices[12]] + word_lengths[indices[13]] +
-      word_lengths[indices[14]] + word_lengths[indices[15]] +
-      word_lengths[indices[16]] + word_lengths[indices[17]] +
-      word_lengths[indices[18]] + word_lengths[indices[19]] +
-      word_lengths[indices[20]] + word_lengths[indices[21]] +
-      word_lengths[indices[22]] + word_lengths[indices[23]];
   int mnemonic_index = 0;
 
   // 拼接助记词
@@ -115,34 +101,34 @@ static void int_to_mnemonic(uchar *bytes32, uchar *mnemonic,
   }
   mnemonic[mnemonic_index - 1] = 0;
 
-  *mnemonic_index_ = mnemonic_index;
+  *mnemonic_index_ = mnemonic_index - 1;
 }
 
 static void PBKDF2(unsigned char *input_word, unsigned int input_word_len,
                    unsigned char *salt, unsigned int saltLen,
                    unsigned char *seed) {
 
+  uchar key[256] = {0};
   uchar sha512_result[64] = {0};
   uchar tmp[64] = {0};
-  uchar hi[256] = {0};
 
-  printf("\nGPU PBKDF2 mnemonic\n");
+  printf("\nstart\n");
 
   for (int i = 0; i < input_word_len; i++) {
-    hi[i] = input_word[i];
-    printf("%c", hi[i]);
+    key[i] = input_word[i];
+    printf("%c", key[i]);
   }
 
-  printf("\n");
+  printf("|end\n");
 
   for (int j = 0; j < 2048; j++) {
     if (j == 0) {
-      hmac_sha512(&hi, input_word_len, salt, saltLen, &sha512_result);
+      hmac_sha512(&key, input_word_len, salt, saltLen, &sha512_result);
       // printf("j = %d \n", j);
       // print_seed(sha512_result);
 
     } else {
-      hmac_sha512(&hi, input_word_len, &tmp, 64, &sha512_result);
+      hmac_sha512(&key, input_word_len, &tmp, 64, &sha512_result);
       // printf("j = %d \n", j);
     }
     for (int i = 0; i < 64; i++) {
@@ -152,6 +138,21 @@ static void PBKDF2(unsigned char *input_word, unsigned int input_word_len,
 
     // print_seed(&seed);
   }
+
+  // printf("last out \n");
+  // print_seed(seed);
+}
+
+static void test_PBKDF2() {
+  uchar seed[64] = {0};
+  uchar tmp_word[256] =
+      "cabbage style glare dutch traffic spend minute finger twin hedgehog "
+      "gossip butter bean river debris dance congress orient escape smart "
+      "mixture garlic random mule";
+  uchar pass[12] = {109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1};
+  PBKDF2(&tmp_word, 161, &pass, 12, &seed);
+  // printf("\nseed = \n");
+  print_seed(&seed);
 }
 
 __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
@@ -160,17 +161,11 @@ __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
   ulong idx = get_global_id(0);
   printf("this is start\n");
   uchar mnemonic[256] = {0};
-
   uchar seed[64] = {0};
-
   int mnemonic_length = 0;
-
-  uchar word_test[256] =
-      "vacant rhythm good more bread borrow clown sound plunge "
-      "beef struggle casual fame inject such estate burger "
-      "someone device height odor match pencil property";
   uchar pass[12] = {109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1};
-
+  // test_PBKDF2();
+  test_PBKDF2();
   printf("\n\nGPU the input entropy = \n");
 
   uchar test[32] = {0};
