@@ -155,11 +155,16 @@ static void test_PBKDF2() {
   print_seed(&seed);
 }
 
-__kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
-                             __global uchar *target_mnemonic,
-                             //  __global uchar *target_address,
-                             __global uchar *found_mnemonic) {
+__kernel void int_to_address(ulong input_entropy_size,
+                             __global uchar *input_entropy,
+                             __global uchar *input_address,
+                             __global uchar *out_mnemonic) {
   ulong idx = get_global_id(0);
+  // printf("GPU idx = %d", idx);
+  if (idx > input_entropy_size) {
+    return;
+  }
+
   uchar mnemonic[256] = {0};
   uchar seed[64] = {0};
   int mnemonic_length = 0;
@@ -170,7 +175,7 @@ __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
 
   uchar test[32] = {0};
   for (int i = 0; i < 32; i++) {
-    test[i] = target_mnemonic[i];
+    test[i] = input_entropy[idx * 32 + i];
     // printf("%x,", test[i]);
   }
 
@@ -220,28 +225,18 @@ __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
   keccak_256(&address, 32, &pub_key, 64);
   // printf("\n\nGPU address = 0x");
 
+  bool flag = 1;
   for (int i = 12; i < 32; i++) {
+    if (address[i] != input_address[i - 12]) {
+      flag = 0;
+      break;
+    }
     // printf("%x", address[i]);
   }
 
-  // printf("\n");
-
-  uchar target_address[25] = {0x05, 0xAD, 0xA1, 0x2B, 0x11, 0x3D, 0x9B,
-                              0x19, 0x61, 0x47, 0x57, 0xD1, 0x9F, 0xC0,
-                              0x8D, 0xDD, 0x53, 0x4B, 0xF0, 0x22, 0x76,
-                              0xBD, 0x3A, 0x31, 0x46};
-
-  // bool found_target = 1;
-  // for (int i = 0; i < 25; i++) {
-  //   if (raw_address[i] != target_address[i]) {
-  //     found_target = 0;
-  //   }
-  // }
-
-  // if (found_target == 1) {
-  //   found_mnemonic[0] = 0x01;
-  //   for (int i = 0; i < mnemonic_index; i++) {
-  //     target_mnemonic[i] = mnemonic[i];
-  //   }
-  // }
+  if (flag == 1) {
+    for (int i = 0; i < mnemonic_length; i++) {
+      out_mnemonic[i] = mnemonic[i];
+    }
+  }
 }

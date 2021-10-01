@@ -198,6 +198,8 @@ fn get_entity() -> Work {
     };
 }
 
+static data_size: i32 = 500000 * 32;
+
 fn mnemonic_gpu(
     platform_id: core::types::abs::PlatformId,
     device_id: core::types::abs::DeviceId,
@@ -220,6 +222,8 @@ fn mnemonic_gpu(
 
     loop {
         // let work: Work = get_work();
+        let now = std::time::SystemTime::now();
+
         let work: Work = Work {
             start_lo: 16422911504526868480,
             start_hi: 867472538511601921,
@@ -229,58 +233,71 @@ fn mnemonic_gpu(
 
         let flag = 2;
         if flag > 1 {
-            println!("flag > 1");
+            println!("RUST flag > 1");
         }
 
         println!(
-            "start_hi = {},start_lo = {},batch_size = {},offset = {}",
+            "RUST start_hi = {},start_lo = {},batch_size = {},offset = {}",
             work.start_hi, work.start_lo, work.batch_size, work.offset
         );
 
         // let items: u64 = work.batch_size;
-        let items: u64 = 1;
+        let items: u64 = 500000;
+        // let items: u64 = 1000;
 
         // let mnemonic_hi: cl_ulong = work.start_hi;
-        let mnemonic_lo: cl_ulong = work.start_lo;
+        let input_entropy_size: cl_ulong = 500000;
 
-        // let mut target_mnemonic = vec![0u8; 120];
+        let mut out_mnemonic = vec![0u8; 256];
         // let mut target_mnemonic = "banana high chronic sphere train medal evil ten good strike frequent daring then tower senior poverty face crack purpose appear quit shield palm boost".as_bytes().to_vec();
         // let mut target_mnemonic = "rhythm bulk shoulder shy mix finger fog artefact update obtain fresh clown tent inspire answer unaware teach action two captain street mammal rather fossil".as_bytes().to_vec();
-
-        let target_mnemonic =
-            hex::decode("abab62b8e558c744b0c68872dcc56a83f992692ab900dcebfe779fcaa6157e17")
-                .expect("msg");
-        // let target_mnemonic =
-        //     hex::decode("179e5af5ef66e5da5049cd3de0258c5339a722094e0fdbbbe0e96f148ae80924")
-        //         .expect("msg");
+        let input_entropy = create_entropy();
+        // hex::decode("6becf1663a53eb3cbbf28a86a7e22fb91903fbd4fb7dbc54b81041929d070457")
+        // .expect("msg");
         let mut mnemonic_found = vec![0u8; 1];
 
-        let mnemonic_hi: cl_ulong = target_mnemonic.len() as u64;
+        let address = create_address();
 
-        let target_mnemonic_buf = unsafe {
+        let mnemonic_hi: cl_ulong = input_entropy.len() as u64;
+
+        let input_entropy_buf = unsafe {
             core::create_buffer(
                 &context,
                 flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                target_mnemonic.len(),
-                Some(&target_mnemonic),
+                500000 * 32,
+                Some(&input_entropy),
             )?
         };
 
-        let mnemonic_found_buf = unsafe {
+        let out_mnemonic_buf = unsafe {
             core::create_buffer(
                 &context,
                 flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                1,
-                Some(&mnemonic_found),
+                256,
+                Some(&out_mnemonic),
+            )?
+        };
+
+        let input_address_buf = unsafe {
+            core::create_buffer(
+                &context,
+                flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
+                20,
+                Some(&address),
             )?
         };
 
         let kernel = core::create_kernel(&program, kernel_name)?;
 
-        core::set_kernel_arg(&kernel, 1, ArgVal::scalar(&mnemonic_lo))?;
-        core::set_kernel_arg(&kernel, 0, ArgVal::scalar(&mnemonic_hi))?;
-        core::set_kernel_arg(&kernel, 2, ArgVal::mem(&target_mnemonic_buf))?;
-        core::set_kernel_arg(&kernel, 3, ArgVal::mem(&mnemonic_found_buf))?;
+        /**
+        __kernel void int_to_address(ulong input_size, __global uchar *input_entropy,
+                             __global uchar *target_mnemonic,
+                             __global uchar *target_address) {
+        */
+        core::set_kernel_arg(&kernel, 0, ArgVal::scalar(&input_entropy_size))?;
+        core::set_kernel_arg(&kernel, 1, ArgVal::mem(&input_entropy_buf))?;
+        core::set_kernel_arg(&kernel, 2, ArgVal::mem(&input_address_buf))?;
+        core::set_kernel_arg(&kernel, 3, ArgVal::mem(&out_mnemonic_buf))?;
 
         unsafe {
             core::enqueue_kernel(
@@ -295,17 +312,17 @@ fn mnemonic_gpu(
             )?;
         }
 
-        // unsafe {
-        //     core::enqueue_read_buffer(
-        //         &queue,
-        //         &target_mnemonic_buf,
-        //         true,
-        //         0,
-        //         &mut target_mnemonic,
-        //         None::<core::Event>,
-        //         None::<&mut core::Event>,
-        //     )?;
-        // }
+        unsafe {
+            core::enqueue_read_buffer(
+                &queue,
+                &out_mnemonic_buf,
+                true,
+                0,
+                &mut out_mnemonic,
+                None::<core::Event>,
+                None::<&mut core::Event>,
+            )?;
+        }
 
         // unsafe {
         //     core::enqueue_read_buffer(
@@ -319,26 +336,29 @@ fn mnemonic_gpu(
         //     )?;
         // }
 
-        log_work(work.offset);
+        // log_work(work.offset);
 
-        if mnemonic_found[0] == 0x01 {
-            let s = match String::from_utf8((&target_mnemonic[0..120]).to_vec()) {
+        if out_mnemonic[0] != 0 {
+            let s = match String::from_utf8((&out_mnemonic[0..256]).to_vec()) {
                 Ok(v) => v,
                 Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
             };
-            let mnemonic = s.trim_matches(char::from(0));
-            log_solution(work.offset, mnemonic.to_string());
-            sweep_btc(mnemonic.to_string());
+            println!(
+                "RUST SUCCESS !!! the out mnemonic = {}",
+                String::from_utf8(out_mnemonic).expect("msg")
+            );
         }
-        println!("this is end ");
+
+        println!("RUST use time {:?}, ", now.elapsed().expect(""));
+
+        println!("RUST this is end ");
 
         assert!(flag < 1);
-        println!("this assert ");
+        println!("RUST this assert ");
     }
 }
 
 fn main() {
-    println!("this is run");
     let platform_id = core::default_platform().unwrap();
     let device_ids =
         core::get_device_ids(&platform_id, Some(ocl::flags::DEVICE_TYPE_GPU), None).unwrap();
@@ -394,29 +414,91 @@ fn main() {
 
     let src_cstring = CString::new(raw_cl_file).unwrap();
 
-    println!("start test just_seed");
     // just_seed::test();
 
     // let work: Work = get_entity();
 
     // test();
+
     device_ids.into_par_iter().for_each(move |device_id| {
         mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
     });
-
+    // test_time();
     // test_bit();
 }
 
 // 根据助记词生成向量
 // 根据向量生成助记词
 fn test() {
+    let s1 = String::from("hello");
+    let s2 = &s1;
     println!("hello = {}", words[1]);
+    show(&s1);
+    println!("hello = {}", s1);
 }
 
-// 创建32位数组
-fn crate_byte() -> Vec<u8> {
-    let mut bytes = [0u8; 32];
-    bytes.to_vec()
+fn show(str: &String) {
+    println!("show = {}", str)
+}
+
+fn test_create_entropy() {
+    let b2: Vec<u8> = create_entropy();
+
+    let mut i = 0;
+    while i < 32 {
+        println!("y = {:x}", b2[b2.len() - 32 + i]);
+        i = i + 1;
+    }
+}
+
+// 创建500000个32位数组
+fn create_entropy() -> Vec<u8> {
+    let mut b2: Vec<u8> = Vec::new();
+    // 填充entropy
+    let input_entropy =
+        hex::decode("6becf1663a53eb3cbbf28a86a7e22fb91903fbd4fb7dbc54b81041929d070457")
+            .expect("msg");
+    let mut i = 0;
+    while i < 500000 {
+        let mut j = 0;
+        while j < 32 {
+            b2.push(input_entropy[j]);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    let test_entropy =
+        hex::decode("8a5ac968ea198138f26d68099028d4417da0d30deb4030a0a32eaf7a41991523")
+            .expect("msg");
+
+    // 倒数第二个
+    let len = b2.len();
+    let mut i = 0;
+    while i < 32 {
+        b2[len - 32 + i] = test_entropy[i];
+        i = i + 1;
+    }
+    // println!("the last = {}", b2[b2.len() - 1]);
+    b2.to_vec()
+}
+
+// 创建20字节的地址数组
+fn create_address() -> Vec<u8> {
+    let address = hex::decode("7127e93651CC9d3AD3c0e5499Dba43cB765783E2").expect("msg");
+    address
+}
+
+fn five() -> i32 {
+    5
+}
+
+// 测试时间
+fn test_time() {
+    println!("RUST test time");
+    let now = std::time::SystemTime::now();
+
+    println!("{:?}", now.elapsed().expect(""))
 }
 
 // 测试位操作
