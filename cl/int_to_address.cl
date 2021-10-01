@@ -21,11 +21,11 @@ static void int_to_mnemonic(uchar *bytes32, uchar *mnemonic,
   // ulong mnemonic_lo = mnemonic_start_lo + idx;
   ulong mnemonic_hi = 123456755;
 
-  uchar a = 1;     // 00000001
-  uint16 b = 1;    // 00000010
-  uint16 c = 2047; // 00000010
-  b = (b << 12) | b;
-  printf("this is test a|b = %x %d", b, b);
+  // uchar a = 1;     // 00000001
+  // uint16 b = 1;    // 00000010
+  // uint16 c = 2047; // 00000010
+  // b = (b << 12) | b;
+  // printf("this is test a|b = %x %d", b, b);
 
   // 16个字节共16*8=128位
   // 128位+校检和4位 = 132位
@@ -112,14 +112,14 @@ static void PBKDF2(unsigned char *input_word, unsigned int input_word_len,
   uchar sha512_result[64] = {0};
   uchar tmp[64] = {0};
 
-  printf("\nstart\n");
+  // printf("\nstart\n");
 
   for (int i = 0; i < input_word_len; i++) {
     key[i] = input_word[i];
-    printf("%c", key[i]);
+    // printf("%c", key[i]);
   }
 
-  printf("|end\n");
+  // printf("|end\n");
 
   for (int j = 0; j < 2048; j++) {
     if (j == 0) {
@@ -157,36 +157,36 @@ static void test_PBKDF2() {
 
 __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
                              __global uchar *target_mnemonic,
+                             //  __global uchar *target_address,
                              __global uchar *found_mnemonic) {
   ulong idx = get_global_id(0);
-  printf("this is start\n");
   uchar mnemonic[256] = {0};
   uchar seed[64] = {0};
   int mnemonic_length = 0;
   uchar pass[12] = {109, 110, 101, 109, 111, 110, 105, 99, 0, 0, 0, 1};
   // test_PBKDF2();
-  test_PBKDF2();
-  printf("\n\nGPU the input entropy = \n");
+  // test_PBKDF2();
+  // printf("\n\nGPU the input entropy = \n");
 
   uchar test[32] = {0};
   for (int i = 0; i < 32; i++) {
     test[i] = target_mnemonic[i];
-    printf("%x,", test[i]);
+    // printf("%x,", test[i]);
   }
 
   int_to_mnemonic(&test, &mnemonic, &mnemonic_length);
-  printf("\nGPU mnemonic_length = %d", mnemonic_length);
+  // printf("\nGPU mnemonic_length = %d", mnemonic_length);
 
-  printf("\nGPU mnemonic\n");
+  // printf("\nGPU mnemonic\n");
 
-  for (int i = 0; i < mnemonic_length; i++) {
-    printf("%c", mnemonic[i]);
-  }
+  // for (int i = 0; i < mnemonic_length; i++) {
+  //   printf("%c", mnemonic[i]);
+  // }
 
-  printf("\n\n");
+  // printf("\n\n");
 
   PBKDF2(&mnemonic, mnemonic_length, &pass, 12, &seed);
-  print_seed(&seed);
+  // print_seed(&seed);
   // ulong mnemonic_lo = mnemonic_start_lo + idx;
   // ulong mnemonic_hi = mnemonic_start_hi;
 
@@ -211,21 +211,20 @@ __kernel void int_to_address(ulong mnemonic_start_hi, ulong mnemonic_start_lo,
   normal_private_child_from_private(&target_key, &target_key, 0);
   public_from_private(&target_key, &target_public_key);
 
-  // printf("\n\npub_key = \n");
-  // for (int i = 0; i < 64; i++) {
-  //   pub_key[i] = target_public_key.public_key.key.data[i];
-  //   printf("%x", pub_key[i]);
-  // }
+  // printf("\npub_key = \n");
+  for (int i = 0; i < 64; i++) {
+    pub_key[i] = target_public_key.public_key.key.data[i];
+    // printf("%x", pub_key[i]);
+  }
 
-  unsigned char out[32] = {0};
-  unsigned char in[256] = "testing";
   keccak_256(&address, 32, &pub_key, 64);
-
-  printf("\n\nGPU address =0x");
+  // printf("\n\nGPU address = 0x");
 
   for (int i = 12; i < 32; i++) {
-    printf("%x", address[i]);
+    // printf("%x", address[i]);
   }
+
+  // printf("\n");
 
   uchar target_address[25] = {0x05, 0xAD, 0xA1, 0x2B, 0x11, 0x3D, 0x9B,
                               0x19, 0x61, 0x47, 0x57, 0xD1, 0x9F, 0xC0,
