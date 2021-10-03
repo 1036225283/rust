@@ -198,8 +198,6 @@ fn get_entity() -> Work {
     };
 }
 
-static data_size: i32 = 500000 * 32;
-
 fn mnemonic_gpu(
     platform_id: core::types::abs::PlatformId,
     device_id: core::types::abs::DeviceId,
@@ -242,11 +240,11 @@ fn mnemonic_gpu(
         );
 
         // let items: u64 = work.batch_size;
-        let items: u64 = 500000;
+        let items: u64 = 5000000;
         // let items: u64 = 1000;
 
         // let mnemonic_hi: cl_ulong = work.start_hi;
-        let input_entropy_size: cl_ulong = 500000;
+        let input_entropy_size: cl_ulong = 5000000;
 
         let mut out_mnemonic = vec![0u8; 256];
         // let mut target_mnemonic = "banana high chronic sphere train medal evil ten good strike frequent daring then tower senior poverty face crack purpose appear quit shield palm boost".as_bytes().to_vec();
@@ -264,7 +262,7 @@ fn mnemonic_gpu(
             core::create_buffer(
                 &context,
                 flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                500000 * 32,
+                5000000 * 32,
                 Some(&input_entropy),
             )?
         };
@@ -420,9 +418,11 @@ fn main() {
 
     // test();
 
-    device_ids.into_par_iter().for_each(move |device_id| {
-        mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
-    });
+    // device_ids.into_par_iter().for_each(move |device_id| {
+    //     mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
+    // });
+
+    words_to_32byte();
     // test_time();
     // test_bit();
 }
@@ -459,7 +459,7 @@ fn create_entropy() -> Vec<u8> {
         hex::decode("6becf1663a53eb3cbbf28a86a7e22fb91903fbd4fb7dbc54b81041929d070457")
             .expect("msg");
     let mut i = 0;
-    while i < 500000 {
+    while i < 5000000 {
         let mut j = 0;
         while j < 32 {
             b2.push(input_entropy[j]);
@@ -491,6 +491,83 @@ fn create_address() -> Vec<u8> {
 
 fn five() -> i32 {
     5
+}
+
+// 助记词转换成vec[u8,32]
+fn words_to_32byte() {
+    let input_word = String::from("medal stone focus stage object organ situate public another life crush load sure hat dash gym cost agree slight galaxy piano smart fee guide");
+    println!("the input word = {:?}", input_word);
+
+    let pos: Vec<&str> = input_word.split(" ").collect();
+
+    let mut i = 0;
+    let mut input_word_index = vec![0u16; 24];
+
+    while i < 24 {
+        let index = words.iter().position(|&x| x.eq(pos[i]));
+        input_word_index[i] = index.expect("words_to_32byte get index failure") as u16;
+        println!(
+            "{} word = {} index = {} {:b}",
+            i, pos[i], input_word_index[i], input_word_index[i]
+        );
+        i = i + 1;
+    }
+    // 先填充前132位, 每个单词11位,要映射的到8位上面去
+    let mut entropy = vec![0u8; 32];
+
+    entropy[0] = (input_word_index[0] >> 3) as u8;
+
+    entropy[1] = ((input_word_index[0] & 7) << 5) as u8 | (input_word_index[1] >> 6) as u8;
+
+    entropy[2] = ((input_word_index[1] & 63) << 2) as u8 | (input_word_index[2] >> 9) as u8;
+    entropy[3] = (input_word_index[2] >> 1) as u8;
+    entropy[4] = ((input_word_index[2] & 1) << 7) as u8 | (input_word_index[3] >> 4) as u8;
+    entropy[5] = ((input_word_index[3] & 15) << 4) as u8 | (input_word_index[4] >> 7) as u8;
+    entropy[6] = ((input_word_index[4] & 127) << 1) as u8 | (input_word_index[5] >> 10) as u8;
+    entropy[7] = (input_word_index[5] >> 2) as u8;
+    entropy[8] = ((input_word_index[5] & 3) << 6) as u8 | (input_word_index[6] >> 5) as u8;
+    entropy[9] = ((input_word_index[6] & 31) << 3) as u8 | (input_word_index[7] >> 8) as u8;
+    entropy[10] = input_word_index[7] as u8;
+
+    // 接下来就是重复操作
+    entropy[11] = (input_word_index[8] >> 3) as u8;
+    entropy[12] = ((input_word_index[8] & 7) << 5) as u8 | (input_word_index[9] >> 6) as u8;
+    println!("y = {:b}", (input_word_index[8]));
+    println!("y = {:b}", (input_word_index[8] & 7));
+    println!(
+        "c = {:b}",
+        ((input_word_index[8] & 7) << 5) as u8 | ((input_word_index[9] >> 6) as u8)
+    );
+
+    entropy[13] = ((input_word_index[9] & 63) << 2) as u8 | (input_word_index[10] >> 9) as u8;
+    entropy[14] = (input_word_index[10] >> 1) as u8;
+    entropy[15] = ((input_word_index[10] & 1) << 7) as u8 | (input_word_index[11] >> 4) as u8;
+    entropy[16] = ((input_word_index[11] & 15) << 4) as u8 | (input_word_index[12] >> 7) as u8;
+    entropy[17] = ((input_word_index[12] & 127) << 1) as u8 | (input_word_index[13] >> 10) as u8;
+    entropy[18] = (input_word_index[13] >> 2) as u8;
+    entropy[19] = ((input_word_index[13] & 3) << 6) as u8 | (input_word_index[14] >> 5) as u8;
+    entropy[20] = ((input_word_index[14] & 31) << 3) as u8 | (input_word_index[15] >> 8) as u8;
+    entropy[21] = input_word_index[15] as u8;
+
+    // 再次重复操作
+    entropy[22] = (input_word_index[16] >> 3) as u8;
+    entropy[23] = ((input_word_index[16] & 7) << 5) as u8 | (input_word_index[17] >> 6) as u8;
+    entropy[24] = ((input_word_index[17] & 63) << 2) as u8 | (input_word_index[18] >> 9) as u8;
+    entropy[25] = (input_word_index[18] >> 1) as u8;
+    entropy[26] = ((input_word_index[18] & 1) << 7) as u8 | (input_word_index[19] >> 4) as u8;
+    entropy[27] = ((input_word_index[19] & 15) << 4) as u8 | (input_word_index[20] >> 7) as u8;
+    entropy[28] = ((input_word_index[20] & 127) << 1) as u8 | (input_word_index[21] >> 10) as u8;
+    entropy[29] = (input_word_index[21] >> 2) as u8;
+    entropy[30] = ((input_word_index[21] & 3) << 6) as u8 | (input_word_index[22] >> 5) as u8;
+    entropy[31] = ((input_word_index[22] & 31) << 3) as u8 | (input_word_index[23] >> 8) as u8;
+
+    let mut k = 0;
+    while k < 32 {
+        println!("{:x} \t {}", entropy[k], k);
+        // println!("test = {:b}", test); //输出二进制
+
+        k = k + 1;
+    }
 }
 
 // 测试时间
