@@ -14,6 +14,7 @@ use ocl::enums::ArgVal;
 use ocl::prm::cl_ulong;
 use ocl::{core, flags};
 use rayon::prelude::*;
+use redis::Commands;
 use reqwest;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -47,6 +48,61 @@ struct Work {
 
 struct Work2 {
     arr: Vec<u64>,
+}
+
+// 直接在本机生成助记词
+struct Word {
+    // 备选数据
+    optional: Vec<u16>,
+    // 输入数据
+    input: Vec<u16>,
+    // 输入数据对应的索引
+    input_index: u16,
+    // 输出数据
+    output: Vec<u16>,
+}
+
+impl Word {
+    fn test(&self) {
+        println!("{}", self.input_index)
+    }
+
+    fn set_input(&mut self, v: Vec<u16>) {
+        self.input = v;
+        self.input_index = 0;
+    }
+
+    fn show_input(&mut self) {
+        let mut i = 0;
+        println!("input {:?}", self.input)
+    }
+
+    // 判断是否还有其他下一个助记词
+    fn next(&mut self) -> bool {
+        if self.input_index < (self.input.len() as u16) {
+            true
+        } else {
+            false
+        }
+    }
+
+    // 获取下一个助记词
+    fn next_data(&mut self) -> u16 {
+        let data = self.input[self.input_index as usize];
+        self.input_index = self.input_index + 1;
+        data
+    }
+
+    // 获取下一级的输入
+    fn child_input_data(&mut self) -> Vec<u16> {
+        self.output = self.input.clone();
+        self.output.remove((self.input_index - 1) as usize);
+        self.output.clone()
+    }
+
+    fn get_output() {}
+
+    fn get_index() {}
 }
 
 fn sweep_btc(mnemonic: String) {
@@ -422,7 +478,9 @@ fn main() {
     //     mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
     // });
 
-    words_to_32byte();
+    words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
+    create_words();
+    // test_redis();
     // test_time();
     // test_bit();
 }
@@ -451,6 +509,52 @@ fn test_create_entropy() {
     }
 }
 
+// 取数据
+fn test_redis() -> Vec<u8> {
+    let mut b2: Vec<u8> = Vec::new();
+
+    let client = redis::Client::open("redis://127.0.0.1");
+    let mut con = client
+        .expect("get redis error")
+        .get_connection()
+        .expect("redis.get_collection error");
+
+    let test: String = redis::cmd("GET")
+        .arg("RUST:TEST")
+        .query(&mut con)
+        .expect("get val error");
+    println!("get redis key test = {}", test);
+
+    // redis list 中1000000条
+    let key = "RUST:TEST:1";
+    let mut i = 0;
+    let mut size: isize = 0;
+    let len: isize = con.llen(key).expect("msg");
+    if len > 500000 {
+        size = 500000;
+    } else {
+        size = len;
+    }
+
+    let items: Vec<String> = con.lrange(key, -size, -1).expect("msg");
+
+    while i < items.len() {
+        // println!("word = {}", items[i]);
+
+        let entropy = words_to_32byte(&items[i]);
+        let mut j = 0;
+
+        while j < 32 {
+            b2.push(entropy[j]);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    println!("the test len = {}, itmes.len = {}", size, items.len());
+    b2.to_vec()
+}
+
 // 创建500000个32位数组
 fn create_entropy() -> Vec<u8> {
     let mut b2: Vec<u8> = Vec::new();
@@ -459,6 +563,7 @@ fn create_entropy() -> Vec<u8> {
         hex::decode("6becf1663a53eb3cbbf28a86a7e22fb91903fbd4fb7dbc54b81041929d070457")
             .expect("msg");
     let mut i = 0;
+
     while i < 5000000 {
         let mut j = 0;
         while j < 32 {
@@ -494,8 +599,8 @@ fn five() -> i32 {
 }
 
 // 助记词转换成vec[u8,32]
-fn words_to_32byte() {
-    let input_word = String::from("medal stone focus stage object organ situate public another life crush load sure hat dash gym cost agree slight galaxy piano smart fee guide");
+fn words_to_32byte(input_word: &str) -> Vec<u8> {
+    // let input_word = String::from("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
     println!("the input word = {:?}", input_word);
 
     let pos: Vec<&str> = input_word.split(" ").collect();
@@ -562,12 +667,189 @@ fn words_to_32byte() {
     entropy[31] = ((input_word_index[22] & 31) << 3) as u8 | (input_word_index[23] >> 8) as u8;
 
     let mut k = 0;
+    println!("");
     while k < 32 {
-        println!("{:x} \t {}", entropy[k], k);
+        print!("{:x}", entropy[k]);
         // println!("test = {:b}", test); //输出二进制
 
         k = k + 1;
     }
+    println!("");
+
+    entropy
+}
+
+// 穷举助记词
+fn create_words() {
+    let works_12 = String::from(
+        "anger stem hobby giraffe cable source episode remove border acquire connect brief",
+    );
+    let mut input: Vec<u16> = Vec::new();
+    let mut i: u16 = 0;
+    while i < 12 {
+        input.push(i);
+        i = i + 1;
+    }
+
+    // 将外部输入的助记词转换成index
+
+    // 从外部加载每个助记词的input
+    let mut word0 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word1 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word2 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word3 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word4 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word5 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word6 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word7 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word8 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word9 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word10 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    let mut word11 = Word {
+        optional: Vec::new(),
+        input_index: 0,
+        input: Vec::new(),
+        output: Vec::new(),
+    };
+
+    word0.set_input(input);
+    word0.show_input();
+
+    // word1.set
+    println!("index = {}", word0.next());
+
+    let now = std::time::SystemTime::now();
+
+    // 助记词数据
+    let mut the_data = vec![0u16; 12];
+
+    // 性能测试
+    let mut the_datas: Vec<Vec<u16>> = Vec::new();
+
+    while word0.next() {
+        the_data[0] = word0.next_data();
+        word1.set_input(word0.child_input_data());
+        while word1.next() {
+            the_data[1] = word1.next_data();
+            word2.set_input(word1.child_input_data());
+            while word2.next() {
+                the_data[2] = word2.next_data();
+                word3.set_input(word2.child_input_data());
+                while word3.next() {
+                    the_data[3] = word3.next_data();
+                    word4.set_input(word3.child_input_data());
+                    while word4.next() {
+                        the_data[4] = word4.next_data();
+                        word5.set_input(word4.child_input_data());
+                        while word5.next() {
+                            the_data[5] = word5.next_data();
+                            word6.set_input(word5.child_input_data());
+                            while word6.next() {
+                                the_data[6] = word6.next_data();
+                                word7.set_input(word6.child_input_data());
+                                while word7.next() {
+                                    the_data[7] = word7.next_data();
+                                    word8.set_input(word7.child_input_data());
+                                    while word8.next() {
+                                        the_data[8] = word8.next_data();
+                                        word9.set_input(word8.child_input_data());
+                                        while word9.next() {
+                                            the_data[9] = word9.next_data();
+                                            word10.set_input(word9.child_input_data());
+                                            while word10.next() {
+                                                the_data[10] = word10.next_data();
+                                                word11.set_input(word10.child_input_data());
+                                                if the_datas.len() < 500000 {
+                                                    the_datas.push(the_data.clone());
+                                                    // println!("llen = {}", the_datas.len())
+                                                } else {
+                                                    println!(
+                                                        "RUST use time {:?}, len = {}",
+                                                        now.elapsed().expect(""),
+                                                        the_datas.len()
+                                                    );
+                                                    the_datas.clear();
+                                                }
+                                                // println!("the data = {:?}", the_data);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // println!("the child data = {:?}", word0.output);
+    }
+    // println!("index = {:?}", word0.output);
 }
 
 // 测试时间
