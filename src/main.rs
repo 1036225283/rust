@@ -24,6 +24,12 @@ use std::fs;
 use std::ops::Index;
 use std::ptr::null;
 use std::str;
+use std::sync::Mutex;
+#[macro_use]
+extern crate lazy_static;
+lazy_static! {
+    static ref WORDS: Mutex<Vec<Vec<u16>>> = Mutex::new(vec![]);
+}
 
 const PASSPHRASE: &str = "";
 const WORK_SERVER_URL: &str = "http://localhost:3000";
@@ -58,34 +64,31 @@ struct Word {
     // 输入数据
     input: Vec<u16>,
     // 输入数据对应的索引
-    input_index: u16,
+    column_index: u16,
     inner_index: u16,
     // 输出数据
     output: Vec<u16>,
-    // 12个单词
-    words: Vec<&Word>,
 }
 
 impl Default for Word {
     fn default() -> Self {
         Word {
             optional: Vec::new(),
-            input_index: 0,
+            column_index: 0,
             inner_index: 0,
             input: Vec::new(),
             output: Vec::new(),
-            words: vec![],
         }
     }
 }
 impl Word {
     fn test(&self) {
-        println!("{}", self.input_index)
+        println!("{}", self.column_index)
     }
 
     fn set_input(&mut self, v: Vec<u16>) {
         self.input = v;
-        self.input_index = 0;
+        self.column_index = 0;
         self.inner_index = 0;
     }
 
@@ -98,11 +101,13 @@ impl Word {
     fn next(&mut self) -> bool {
         // 先判断是否还有备选词
 
-        if self.inner_index < self.words[self.input_index as usize].optional.len() as u16 {
+        if self.inner_index
+            < WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len() as u16
+        {
             true;
         }
 
-        if self.input_index < (self.input.len() as u16) {
+        if self.column_index < (self.input.len() as u16) {
             true
         } else {
             false
@@ -112,25 +117,47 @@ impl Word {
     // 获取下一个助记词
     fn next_data(&mut self) -> u16 {
         // 先取备选词,如果备选词没了,再选下一个序列
-        if self.inner_index < self.words[self.inner_index as usize].optional.len() as u16 {
+        // input存储序列
+        // words存储真正的助记单词
+        // 从input_index存储已经遍历的位置中取出序列索引
+        //
+
+        println!(
+            "the input1 = {:?}, column_index = {}, inner_index = {} ,len = {}",
+            self.input,
+            self.column_index,
+            self.inner_index,
+            WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len()
+        );
+        if self.inner_index
+            < WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len() as u16
+        {
+            let data = WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize]
+                [self.inner_index as usize];
             self.inner_index = self.inner_index + 1;
-            let data = self.words[self.input_index as usize].optional[self.inner_index as usize];
             return data;
         } else {
-            self.input_index = self.input_index + 1;
+            self.column_index = self.column_index + 1;
+            println!(
+                "the input = {:?}, column_index = {}, inner_index = {}",
+                self.input, self.column_index, self.inner_index
+            );
             self.inner_index = 0;
-            let data = self.words[self.input_index as usize].optional[self.inner_index as usize];
+
+            let data = WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize]
+                [self.inner_index as usize];
             return data;
         }
-        // let data = self.input[self.input_index as usize];
-        // self.input_index = self.input_index + 1;
-        // data
     }
 
     // 获取下一级的输入
     fn child_input_data(&mut self) -> Vec<u16> {
         self.output = self.input.clone();
-        self.output.remove((self.input_index - 1) as usize);
+        // println!(
+        //     "the output = {:?}, column_index = {}",
+        //     self.output, self.column_index
+        // );
+        self.output.remove((self.column_index) as usize);
         self.output.clone()
     }
 
@@ -178,8 +205,8 @@ impl Word {
     }
 
     // 保存words
-    fn set_words(&mut self, input_words: &Vec<&Word>) {
-        self.words = *input_words
+    fn set_words(&mut self, input_words: Vec<&Word>) {
+        // self.words = input_words
     }
 
     fn get_index() {}
@@ -507,7 +534,8 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     println!("the input param = {:?}", args);
 
-    let content = fs::read_to_string(args[1].to_string()).unwrap();
+    // let content = fs::read_to_string(args[1].to_string()).unwrap();
+    let content = fs::read_to_string("/home/xws/Desktop/input.txt").unwrap();
     let input_data: Vec<&str> = content.split("\n").collect();
     println!("the text = {:?}", input_data);
 
@@ -786,184 +814,6 @@ fn words_to_32byte(input_word: &str) -> Vec<u8> {
     entropy
 }
 
-// 穷举助记词
-fn create_words() {
-    let works_12 = String::from(
-        "anger stem hobby giraffe cable source episode remove border acquire connect brief",
-    );
-    let mut input: Vec<u16> = Vec::new();
-    let mut i: u16 = 0;
-    while i < 12 {
-        input.push(i);
-        i = i + 1;
-    }
-
-    // 将外部输入的助记词转换成index
-
-    // 从外部加载每个助记词的input
-
-    let mut word0 = Word::default();
-    let mut word1 = Word::default();
-    let mut word2 = Word::default();
-    let mut word3 = Word::default();
-    let mut word4 = Word::default();
-    let mut word5 = Word::default();
-    let mut word6 = Word::default();
-    let mut word7 = Word::default();
-    let mut word8 = Word::default();
-    let mut word9 = Word::default();
-    let mut word10 = Word::default();
-    let mut word11 = Word::default();
-    // let mut word0 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-    // let mut word2 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word3 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word4 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word5 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word6 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word7 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word8 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word9 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word10 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word11 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    word0.set_input(input);
-    word0.show_input();
-
-    // word1.set
-    println!("index = {}", word0.next());
-
-    let now = std::time::SystemTime::now();
-
-    // 助记词数据
-    let mut the_data = vec![0u16; 12];
-
-    // 性能测试
-    let mut the_datas: Vec<Vec<u16>> = Vec::new();
-
-    while word0.next() {
-        the_data[0] = word0.next_data();
-        word1.set_input(word0.child_input_data());
-        while word1.next() {
-            the_data[1] = word1.next_data();
-            word2.set_input(word1.child_input_data());
-            while word2.next() {
-                the_data[2] = word2.next_data();
-                word3.set_input(word2.child_input_data());
-                while word3.next() {
-                    the_data[3] = word3.next_data();
-                    word4.set_input(word3.child_input_data());
-                    while word4.next() {
-                        the_data[4] = word4.next_data();
-                        word5.set_input(word4.child_input_data());
-                        while word5.next() {
-                            the_data[5] = word5.next_data();
-                            word6.set_input(word5.child_input_data());
-                            while word6.next() {
-                                the_data[6] = word6.next_data();
-                                word7.set_input(word6.child_input_data());
-                                while word7.next() {
-                                    the_data[7] = word7.next_data();
-                                    word8.set_input(word7.child_input_data());
-                                    while word8.next() {
-                                        the_data[8] = word8.next_data();
-                                        word9.set_input(word8.child_input_data());
-                                        while word9.next() {
-                                            the_data[9] = word9.next_data();
-                                            word10.set_input(word9.child_input_data());
-                                            while word10.next() {
-                                                the_data[10] = word10.next_data();
-                                                word11.set_input(word10.child_input_data());
-                                                if the_datas.len() < 500000 {
-                                                    the_datas.push(the_data.clone());
-                                                    // println!("llen = {}", the_datas.len())
-                                                } else {
-                                                    println!(
-                                                        "RUST use time {:?}, len = {}",
-                                                        now.elapsed().expect(""),
-                                                        the_datas.len()
-                                                    );
-                                                    the_datas.clear();
-                                                }
-                                                // println!("the data = {:?}", the_data);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // println!("the child data = {:?}", word0.output);
-    }
-    // println!("index = {:?}", word0.output);
-}
-
 // 初始化word对象
 
 // 穷举助记词
@@ -971,17 +821,12 @@ fn create_words_from_file(input_data: Vec<&str>) {
     println!("create_words_from_file input_data = {:?}", input_data);
 
     // 初始化
-    let works_12 = String::from(
-        "anger stem hobby giraffe cable source episode remove border acquire connect brief",
-    );
     let mut input: Vec<u16> = Vec::new();
     let mut i: u16 = 0;
-    while i < 12 {
+    while i < 11 {
         input.push(i);
         i = i + 1;
     }
-
-    // 将外部输入的助记词转换成index
 
     // 从外部加载每个助记词的input
     let mut word0 = Word::default();
@@ -996,121 +841,6 @@ fn create_words_from_file(input_data: Vec<&str>) {
     let mut word9 = Word::default();
     let mut word10 = Word::default();
     let mut word11 = Word::default();
-
-    // let mut word1 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word2 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word3 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word4 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word5 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word6 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word7 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word8 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word9 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word10 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    // let mut word11 = Word {
-    //     optional: Vec::new(),
-    //     input_index: 0,
-    //     inner_index: 0,
-    //     input: Vec::new(),
-    //     output: Vec::new(),
-    // };
-
-    let mut input_words = Vec::new();
-    input_words.push(&word0);
-    input_words.push(&word1);
-    input_words.push(&word2);
-    input_words.push(&word3);
-    input_words.push(&word4);
-    input_words.push(&word5);
-    input_words.push(&word6);
-    input_words.push(&word7);
-    input_words.push(&word8);
-    input_words.push(&word9);
-    input_words.push(&word10);
-    input_words.push(&word11);
-
-    word0.set_words(&input_words);
-    word1.set_words(&input_words);
-    word2.set_words(&input_words);
-    word3.set_words(&input_words);
-    word4.set_words(&input_words);
-    word5.set_words(&input_words);
-    word6.set_words(&input_words);
-    word7.set_words(&input_words);
-    word8.set_words(&input_words);
-    word9.set_words(&input_words);
-    word10.set_words(&input_words);
-    word11.set_words(&input_words);
 
     word0.set_input(input);
     word0.show_input();
@@ -1131,6 +861,27 @@ fn create_words_from_file(input_data: Vec<&str>) {
     // 第12个助记词的备选是1,2,3,4,5,6,7
     word11.set_optional(vec![1, 2, 3, 4, 5, 6, 7]);
 
+    WORDS.lock().unwrap().push(word0.optional.clone());
+    WORDS.lock().unwrap().push(word1.optional.clone());
+    WORDS.lock().unwrap().push(word2.optional.clone());
+    WORDS.lock().unwrap().push(word3.optional.clone());
+    WORDS.lock().unwrap().push(word4.optional.clone());
+    WORDS.lock().unwrap().push(word5.optional.clone());
+    WORDS.lock().unwrap().push(word6.optional.clone());
+    WORDS.lock().unwrap().push(word7.optional.clone());
+    WORDS.lock().unwrap().push(word8.optional.clone());
+    WORDS.lock().unwrap().push(word9.optional.clone());
+    WORDS.lock().unwrap().push(word10.optional.clone());
+    WORDS.lock().unwrap().push(word11.optional.clone());
+
+    let mut the_i = 0;
+    while the_i < 12 {
+        println!("WORDS{} = {:?}", the_i, WORDS.lock().unwrap()[the_i]);
+        the_i = the_i + 1;
+    }
+
+    println!("len = {}", WORDS.lock().unwrap().len());
+
     // word1.set
     println!("index = {}", word0.next());
 
@@ -1174,9 +925,10 @@ fn create_words_from_file(input_data: Vec<&str>) {
                                             word10.set_input(word9.child_input_data());
                                             while word10.next() {
                                                 the_data[10] = word10.next_data();
-                                                word11.set_input(word10.child_input_data());
-                                                while word11.next() {
-                                                    the_data[11] = word11.next_data();
+                                                let mut data_11 = 0;
+                                                while data_11 <= 7 {
+                                                    the_data[11] = data_11;
+                                                    data_11 = data_11 + 1;
                                                     if the_datas.len() < 500000 {
                                                         the_datas.push(the_data.clone());
                                                         // println!("llen = {}", the_datas.len())
@@ -1188,7 +940,7 @@ fn create_words_from_file(input_data: Vec<&str>) {
                                                         );
                                                         the_datas.clear();
                                                     }
-                                                    // println!("the data = {:?}", the_data);
+                                                    println!("the data = {:?}", the_data);
                                                     // if i > 0 {
                                                     //     return;
                                                     // }
