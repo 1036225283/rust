@@ -82,10 +82,6 @@ impl Default for Word {
     }
 }
 impl Word {
-    fn test(&self) {
-        println!("{}", self.column_index)
-    }
-
     fn set_input(&mut self, v: Vec<u16>) {
         self.input = v;
         self.column_index = 0;
@@ -93,7 +89,6 @@ impl Word {
     }
 
     fn show_input(&mut self) {
-        let mut i = 0;
         println!("input {:?}", self.input)
     }
 
@@ -104,13 +99,15 @@ impl Word {
         if self.inner_index
             < WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len() as u16
         {
-            true;
+            return true;
         }
 
+        self.column_index = self.column_index + 1;
+
         if self.column_index < (self.input.len() as u16) {
-            true
+            return true;
         } else {
-            false
+            return false;
         }
     }
 
@@ -122,13 +119,13 @@ impl Word {
         // 从input_index存储已经遍历的位置中取出序列索引
         //
 
-        println!(
-            "the input1 = {:?}, column_index = {}, inner_index = {} ,len = {}",
-            self.input,
-            self.column_index,
-            self.inner_index,
-            WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len()
-        );
+        // println!(
+        //     "the input1 = {:?}, column_index = {}, inner_index = {} ,len = {}",
+        //     self.input,
+        //     self.input[self.column_index as usize],
+        //     self.inner_index,
+        //     WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len()
+        // );
         if self.inner_index
             < WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len() as u16
         {
@@ -137,11 +134,11 @@ impl Word {
             self.inner_index = self.inner_index + 1;
             return data;
         } else {
-            self.column_index = self.column_index + 1;
-            println!(
-                "the input = {:?}, column_index = {}, inner_index = {}",
-                self.input, self.column_index, self.inner_index
-            );
+            // self.column_index = self.column_index + 1;
+            // println!(
+            //     "the input = {:?}, column_index = {}, inner_index = {}",
+            //     self.input, self.input[self.column_index as usize], self.inner_index
+            // );
             self.inner_index = 0;
 
             let data = WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize]
@@ -203,24 +200,6 @@ impl Word {
         }
         // println!("set_optional_for_group = {:?}", self.optional);
     }
-
-    // 保存words
-    fn set_words(&mut self, input_words: Vec<&Word>) {
-        // self.words = input_words
-    }
-
-    fn get_index() {}
-}
-
-struct Word_input {
-    // 输入数据
-    input: Vec<Vec<u16>>,
-    // 输入数据对应的索引
-    input_index: u16,
-    // 第二层Vec的index
-    inner_index: u16,
-    // 输出数据
-    output: Vec<Vec<u16>>,
 }
 
 fn sweep_btc(mnemonic: String) {
@@ -534,8 +513,8 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     println!("the input param = {:?}", args);
 
-    // let content = fs::read_to_string(args[1].to_string()).unwrap();
-    let content = fs::read_to_string("/home/xws/Desktop/input.txt").unwrap();
+    let content = fs::read_to_string(args[1].to_string()).unwrap();
+    // let content = fs::read_to_string("/home/xws/Desktop/input.txt").unwrap();
     let input_data: Vec<&str> = content.split("\n").collect();
     println!("the text = {:?}", input_data);
 
@@ -605,7 +584,6 @@ fn main() {
     // });
 
     words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
-    // create_words();
     create_words_from_file(input_data);
     // test_redis();
     // test_time();
@@ -732,6 +710,19 @@ fn get_word_index(s: &str) -> u16 {
     i
 }
 
+// 助记词转换成助记词索引
+fn word_to_word_index(s: &str) -> Vec<u16> {
+    let input_data: Vec<&str> = s.split(" ").collect();
+    let mut word_index: Vec<u16> = Vec::new();
+    let mut i = 0;
+    while i < input_data.len() {
+        let index = get_word_index(input_data[i]);
+        word_index.push(index);
+        i = i + 1;
+    }
+    return word_index;
+}
+
 // 助记词转换成vec[u8,32]
 fn words_to_32byte(input_word: &str) -> Vec<u8> {
     // let input_word = String::from("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
@@ -743,8 +734,6 @@ fn words_to_32byte(input_word: &str) -> Vec<u8> {
     let mut input_word_index = vec![0u16; 24];
 
     while i < 24 {
-        // let index = words.iter().position(|&x| x.eq(pos[i]));
-        // input_word_index[i] = index.expect("words_to_32byte get index failure") as u16;
         input_word_index[i] = get_word_index(pos[i]);
         println!(
             "{} word = {} index = {} {:b}",
@@ -752,6 +741,12 @@ fn words_to_32byte(input_word: &str) -> Vec<u8> {
         );
         i = i + 1;
     }
+    let entropy = words_index_to_32byte(input_word_index);
+
+    entropy
+}
+
+fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
     // 先填充前132位, 每个单词11位,要映射的到8位上面去
     let mut entropy = vec![0u8; 32];
 
@@ -820,12 +815,20 @@ fn words_to_32byte(input_word: &str) -> Vec<u8> {
 fn create_words_from_file(input_data: Vec<&str>) {
     println!("create_words_from_file input_data = {:?}", input_data);
 
+    let mut word_index_12 = word_to_word_index(input_data[0]);
+
+    println!("word_index_12 = {:?}", word_index_12);
+
     // 初始化
     let mut input: Vec<u16> = Vec::new();
     let mut i: u16 = 0;
     while i < 11 {
         input.push(i);
         i = i + 1;
+    }
+
+    if i > 0 {
+        return;
     }
 
     // 从外部加载每个助记词的input
@@ -922,6 +925,7 @@ fn create_words_from_file(input_data: Vec<&str>) {
                                         word9.set_input(word8.child_input_data());
                                         while word9.next() {
                                             the_data[9] = word9.next_data();
+
                                             word10.set_input(word9.child_input_data());
                                             while word10.next() {
                                                 the_data[10] = word10.next_data();
@@ -929,6 +933,16 @@ fn create_words_from_file(input_data: Vec<&str>) {
                                                 while data_11 <= 7 {
                                                     the_data[11] = data_11;
                                                     data_11 = data_11 + 1;
+                                                    let mut word_index_12_copy =
+                                                        word_index_12.clone();
+                                                    let mut index_9 = 0;
+                                                    while index_9 < the_data.len() {
+                                                        word_index_12_copy.push(the_data[index_9]);
+                                                        index_9 = index_9 + 1;
+                                                    }
+
+                                                    // 拿到最终的助记词索引
+
                                                     if the_datas.len() < 500000 {
                                                         the_datas.push(the_data.clone());
                                                         // println!("llen = {}", the_datas.len())
@@ -941,9 +955,6 @@ fn create_words_from_file(input_data: Vec<&str>) {
                                                         the_datas.clear();
                                                     }
                                                     println!("the data = {:?}", the_data);
-                                                    // if i > 0 {
-                                                    //     return;
-                                                    // }
                                                 }
                                             }
                                         }
