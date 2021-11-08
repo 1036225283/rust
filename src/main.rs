@@ -5,9 +5,6 @@ use bitcoin_wallet::bitcoin::blockdata::transaction::{
 };
 use bitcoin_wallet::bitcoin::blockdata::{opcodes, script};
 use bitcoin_wallet::bitcoin::consensus::encode::{deserialize, serialize};
-use bitcoin_wallet::bitcoin::hashes::hex::FromHex;
-use bitcoin_wallet::bitcoin::network::constants::Network;
-use bitcoin_wallet::mnemonic::Mnemonic;
 use hex;
 use ocl::builders::ContextProperties;
 use ocl::enums::ArgVal;
@@ -24,11 +21,16 @@ use std::fs;
 use std::ops::Index;
 use std::ptr::null;
 use std::str;
+use std::sync::mpsc::{self, SyncSender};
 use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
+
 #[macro_use]
 extern crate lazy_static;
 lazy_static! {
     static ref WORDS: Mutex<Vec<Vec<u16>>> = Mutex::new(vec![]);
+    static ref CONFIG_INPUT: Mutex<Vec<String>> = Mutex::new(vec![]);
 }
 
 const PASSPHRASE: &str = "";
@@ -51,10 +53,6 @@ struct Work {
     start_lo: u64,
     batch_size: u64,
     offset: u128,
-}
-
-struct Work2 {
-    arr: Vec<u64>,
 }
 
 // 直接在本机生成助记词
@@ -202,155 +200,6 @@ impl Word {
     }
 }
 
-fn sweep_btc(mnemonic: String) {
-    let tx_bytes: Vec<u8> = Vec::from_hex(INPUT_TRANSACTION).unwrap();
-    let input_transaction: Transaction = deserialize(&tx_bytes).unwrap();
-
-    let mnemonic = Mnemonic::from_str(&mnemonic).unwrap();
-    let mut master =
-        MasterAccount::from_mnemonic(&mnemonic, 0, Network::Bitcoin, PASSPHRASE, None).unwrap();
-    let mut unlocker = Unlocker::new_for_master(&master, PASSPHRASE).unwrap();
-    let account = Account::new(&mut unlocker, AccountAddressType::P2SHWPKH, 0, 0, 10).unwrap();
-    master.add_account(account);
-
-    // this is the raw address of where to send the coins
-    let target_address_bytes = [];
-    let amount_to_spend = 99000000;
-
-    let script_pubkey = script::Builder::new()
-        .push_opcode(opcodes::all::OP_HASH160)
-        .push_slice(&target_address_bytes)
-        .push_opcode(opcodes::all::OP_EQUAL)
-        .into_script();
-
-    let txid = input_transaction.txid();
-    const RBF: u32 = 0xffffffff - 2;
-
-    let mut spending_transaction = Transaction {
-        input: vec![TxIn {
-            previous_output: OutPoint { txid, vout: 0 },
-            sequence: RBF,
-            witness: Vec::new(),
-            script_sig: Script::new(),
-        }],
-        output: vec![TxOut {
-            script_pubkey: script_pubkey,
-            value: amount_to_spend,
-        }],
-        lock_time: 0,
-        version: 2,
-    };
-
-    master
-        .sign(
-            &mut spending_transaction,
-            SigHashType::All,
-            &(|_| Some(input_transaction.output[0].clone())),
-            &mut unlocker,
-        )
-        .expect("can not sign");
-    let rawtx = hex::encode(serialize(&spending_transaction));
-    broadcast_tx(rawtx);
-}
-
-fn broadcast_tx(rawtx: String) {
-    let mut json_body = HashMap::new();
-    json_body.insert("tx", rawtx);
-    let client = reqwest::blocking::Client::new();
-    let _res = client
-        .post("https://api.blockcypher.com/v1/btc/main/txs/push")
-        .json(&json_body)
-        .send();
-}
-
-fn log_solution(offset: u128, mnemonic: String) {
-    let mut json_body = HashMap::new();
-    json_body.insert("mnemonic", mnemonic);
-    json_body.insert("offset", offset.to_string());
-    json_body.insert("secret", WORK_SERVER_SECRET.to_string());
-    let client = reqwest::blocking::Client::new();
-    let _res = client
-        .post(&format!("{}/mnemonic", WORK_SERVER_URL.to_string()).to_string())
-        .json(&json_body)
-        .send();
-}
-
-fn log_work(offset: u128) {
-    let mut json_body = HashMap::new();
-    json_body.insert("offset", offset.to_string());
-    json_body.insert("secret", WORK_SERVER_SECRET.to_string());
-    let client = reqwest::blocking::Client::new();
-    let _res = client
-        .post(&format!("{}/work", WORK_SERVER_URL.to_string()).to_string())
-        .json(&json_body)
-        .send();
-}
-
-fn get_work() -> Work {
-    let response = reqwest::blocking::get(
-        &format!(
-            "{}/work?secret={}",
-            WORK_SERVER_URL.to_string(),
-            WORK_SERVER_SECRET.to_string()
-        )
-        .to_string(),
-    )
-    .unwrap();
-
-    let work_response: WorkResponse = response.json().unwrap();
-
-    let mut start: u128 = 0;
-    let mut start_shift = 128;
-
-    for idx in &work_response.indices {
-        start_shift -= 11;
-        start = start | (idx << start_shift);
-    }
-
-    start += work_response.offset;
-    let start_lo: u64 = ((start << 64) >> 64) as u64;
-    let start_hi: u64 = (start >> 64) as u64;
-
-    return Work {
-        start_lo: start_lo,
-        start_hi: start_hi,
-        batch_size: work_response.batch_size,
-        offset: work_response.offset,
-    };
-}
-
-fn get_entity() -> Work {
-    let response = reqwest::blocking::get(
-        &format!(
-            "{}/hello?secret={}",
-            WORK_SERVER_URL.to_string(),
-            WORK_SERVER_SECRET.to_string()
-        )
-        .to_string(),
-    )
-    .unwrap();
-    let work_response: WorkResponse = response.json().unwrap();
-
-    let mut start: u128 = 0;
-    let mut start_shift = 128;
-
-    for idx in &work_response.indices {
-        start_shift -= 11;
-        start = start | (idx << start_shift);
-    }
-
-    start += work_response.offset;
-    let start_lo: u64 = ((start << 64) >> 64) as u64;
-    let start_hi: u64 = (start >> 64) as u64;
-
-    return Work {
-        start_lo: start_lo,
-        start_hi: start_hi,
-        batch_size: work_response.batch_size,
-        offset: work_response.offset,
-    };
-}
-
 fn mnemonic_gpu(
     platform_id: core::types::abs::PlatformId,
     device_id: core::types::abs::DeviceId,
@@ -371,26 +220,27 @@ fn mnemonic_gpu(
     .unwrap();
     let queue = core::create_command_queue(&context, &device_id, None).unwrap();
 
-    loop {
-        // let work: Work = get_work();
-        let now = std::time::SystemTime::now();
+    // 在这里加载所有的代码
+    let (tx, rx) = mpsc::sync_channel(1000);
 
-        let work: Work = Work {
-            start_lo: 16422911504526868480,
-            start_hi: 867472538511601921,
-            batch_size: 16777216,
-            offset: 1157627904,
-        };
+    let handle = thread::spawn(move || {
+        let mut i = 0;
+        loop {
+            println!("spawned thread print {}, ", i);
+            create_words_from_file(tx.clone());
+
+            thread::sleep(Duration::from_millis(100));
+            i = i + 1;
+        }
+    });
+
+    loop {
+        let now = std::time::SystemTime::now();
 
         let flag = 2;
         if flag > 1 {
             println!("RUST flag > 1");
         }
-
-        println!(
-            "RUST start_hi = {},start_lo = {},batch_size = {},offset = {}",
-            work.start_hi, work.start_lo, work.batch_size, work.offset
-        );
 
         // let items: u64 = work.batch_size;
         let items: u64 = 5000000;
@@ -487,8 +337,6 @@ fn mnemonic_gpu(
         //     )?;
         // }
 
-        // log_work(work.offset);
-
         if out_mnemonic[0] != 0 {
             let s = match String::from_utf8((&out_mnemonic[0..256]).to_vec()) {
                 Ok(v) => v,
@@ -514,9 +362,12 @@ fn main() {
     println!("the input param = {:?}", args);
 
     let content = fs::read_to_string(args[1].to_string()).unwrap();
-    // let content = fs::read_to_string("/home/xws/Desktop/input.txt").unwrap();
-    let input_data: Vec<&str> = content.split("\n").collect();
-    println!("the text = {:?}", input_data);
+    let mut input_data: Vec<&str> = content.split("\n").collect();
+
+    for s in &input_data {
+        CONFIG_INPUT.lock().unwrap().push(s.to_string());
+    }
+    println!("the CONFIG = {:?}", CONFIG_INPUT.lock().unwrap());
 
     let platform_id = core::default_platform().unwrap();
     let device_ids =
@@ -584,12 +435,47 @@ fn main() {
     // });
 
     words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
-    create_words_from_file(input_data);
     // test_redis();
     // test_time();
     // test_bit();
+
+    let s = "hello";
+
+    // let (tx, rx) = mpsc::channel();
+    let (tx, rx) = mpsc::sync_channel(1000);
+    create_words_from_file(tx.clone());
+
+    // let handle = thread::spawn(move || {
+    //     let mut i = 0;
+    //     loop {
+    //         println!("spawned thread print {}, s = {}", i, s);
+    //         tx.send(String::from("hi")).unwrap();
+
+    //         thread::sleep(Duration::from_millis(100));
+    //         i = i + 1;
+    //     }
+    // });
+    // for i in 0..3 {
+    //     println!("main thread print {}", i);
+    //     thread::sleep(Duration::from_millis(1));
+    // }
+
+    // loop {
+    //     thread::sleep(Duration::from_millis(1000));
+
+    //     let received = rx.try_recv().unwrap();
+    //     println!("Got: {}", received);
+    // }
+
+    // handle.join().unwrap();
 }
 
+fn spawn_function() {
+    for i in 0..5 {
+        println!("spawned thread print {}", i);
+        thread::sleep(Duration::from_millis(1));
+    }
+}
 // 根据助记词生成向量
 // 根据向量生成助记词
 fn test() {
@@ -767,12 +653,12 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
     // 接下来就是重复操作
     entropy[11] = (input_word_index[8] >> 3) as u8;
     entropy[12] = ((input_word_index[8] & 7) << 5) as u8 | (input_word_index[9] >> 6) as u8;
-    println!("y = {:b}", (input_word_index[8]));
-    println!("y = {:b}", (input_word_index[8] & 7));
-    println!(
-        "c = {:b}",
-        ((input_word_index[8] & 7) << 5) as u8 | ((input_word_index[9] >> 6) as u8)
-    );
+    // println!("y = {:b}", (input_word_index[8]));
+    // println!("y = {:b}", (input_word_index[8] & 7));
+    // println!(
+    //     "c = {:b}",
+    //     ((input_word_index[8] & 7) << 5) as u8 | ((input_word_index[9] >> 6) as u8)
+    // );
 
     entropy[13] = ((input_word_index[9] & 63) << 2) as u8 | (input_word_index[10] >> 9) as u8;
     entropy[14] = (input_word_index[10] >> 1) as u8;
@@ -794,10 +680,11 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
     entropy[28] = ((input_word_index[20] & 127) << 1) as u8 | (input_word_index[21] >> 10) as u8;
     entropy[29] = (input_word_index[21] >> 2) as u8;
     entropy[30] = ((input_word_index[21] & 3) << 6) as u8 | (input_word_index[22] >> 5) as u8;
-    entropy[31] = ((input_word_index[22] & 31) << 3) as u8 | (input_word_index[23] >> 8) as u8;
+    // entropy[31] = ((input_word_index[22] & 31) << 3) as u8 | (input_word_index[23] >> 8) as u8;
+    entropy[31] = ((input_word_index[22] & 31) << 3) as u8 | (input_word_index[23]) as u8;
 
     let mut k = 0;
-    println!("words_to_32byte ");
+    print!("words_to_32byte ");
     while k < 32 {
         print!("{:x}", entropy[k]);
         // println!("test = {:b}", test); //输出二进制
@@ -809,13 +696,8 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
     entropy
 }
 
-// 初始化word对象
-
-// 穷举助记词
-fn create_words_from_file(input_data: Vec<&str>) {
-    println!("create_words_from_file input_data = {:?}", input_data);
-
-    let mut word_index_12 = word_to_word_index(input_data[0]);
+fn create_words_from_file(tx: SyncSender<Vec<u16>>) {
+    let word_index_12 = word_to_word_index(&CONFIG_INPUT.lock().unwrap()[0]);
 
     println!("word_index_12 = {:?}", word_index_12);
 
@@ -827,9 +709,9 @@ fn create_words_from_file(input_data: Vec<&str>) {
         i = i + 1;
     }
 
-    if i > 0 {
-        return;
-    }
+    // if i > 0 {
+    //     return;
+    // }
 
     // 从外部加载每个助记词的input
     let mut word0 = Word::default();
@@ -848,19 +730,19 @@ fn create_words_from_file(input_data: Vec<&str>) {
     word0.set_input(input);
     word0.show_input();
     // 9个助记词的备选词
-    word0.set_optional_from_str(input_data[1]);
-    word1.set_optional_from_str(input_data[2]);
-    word2.set_optional_from_str(input_data[3]);
-    word3.set_optional_from_str(input_data[4]);
-    word4.set_optional_from_str(input_data[5]);
-    word5.set_optional_from_str(input_data[6]);
-    word6.set_optional_from_str(input_data[7]);
-    word7.set_optional_from_str(input_data[8]);
-    word8.set_optional_from_str(input_data[9]);
+    word0.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[1]);
+    word1.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[2]);
+    word2.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[3]);
+    word3.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[4]);
+    word4.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[5]);
+    word5.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[6]);
+    word6.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[7]);
+    word7.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[8]);
+    word8.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[9]);
     // 第10个助记词的备选词是2048个单词
     word9.set_optional_all();
     // 第11个助记词的备选词的2048的几分之几,分母是GPU的数量
-    word10.set_optional_for_group(input_data[10]);
+    word10.set_optional_for_group(&CONFIG_INPUT.lock().unwrap()[10]);
     // 第12个助记词的备选是1,2,3,4,5,6,7
     word11.set_optional(vec![1, 2, 3, 4, 5, 6, 7]);
 
@@ -940,6 +822,9 @@ fn create_words_from_file(input_data: Vec<&str>) {
                                                         word_index_12_copy.push(the_data[index_9]);
                                                         index_9 = index_9 + 1;
                                                     }
+
+                                                    let entity =
+                                                        words_index_to_32byte(word_index_12_copy);
 
                                                     // 拿到最终的助记词索引
 
