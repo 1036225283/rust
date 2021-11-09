@@ -223,18 +223,17 @@ fn mnemonic_gpu(
     // 在这里加载所有的代码
     let (tx, rx) = mpsc::sync_channel(1000);
 
-    let handle = thread::spawn(move || {
-        let mut i = 0;
-        loop {
-            println!("spawned thread print {}, ", i);
-            create_words_from_file(tx.clone());
-
-            thread::sleep(Duration::from_millis(100));
-            i = i + 1;
-        }
+    let handle = thread::spawn(move || loop {
+        create_words_from_file(tx.clone());
+        thread::sleep(Duration::from_millis(100));
     });
 
+    let address = create_address();
+
     loop {
+        let received = rx.recv().unwrap();
+        println!("the received = {:?}", received);
+
         let now = std::time::SystemTime::now();
 
         let flag = 2;
@@ -242,31 +241,17 @@ fn mnemonic_gpu(
             println!("RUST flag > 1");
         }
 
-        // let items: u64 = work.batch_size;
-        let items: u64 = 5000000;
-        // let items: u64 = 1000;
-
-        // let mnemonic_hi: cl_ulong = work.start_hi;
-        let input_entropy_size: cl_ulong = 5000000;
+        let input_entropy_size: cl_ulong = (received.len() as u64 / 32);
+        let items: u64 = input_entropy_size;
 
         let mut out_mnemonic = vec![0u8; 256];
-        // let mut target_mnemonic = "banana high chronic sphere train medal evil ten good strike frequent daring then tower senior poverty face crack purpose appear quit shield palm boost".as_bytes().to_vec();
-        // let mut target_mnemonic = "rhythm bulk shoulder shy mix finger fog artefact update obtain fresh clown tent inspire answer unaware teach action two captain street mammal rather fossil".as_bytes().to_vec();
-        let input_entropy = create_entropy();
-        // hex::decode("6becf1663a53eb3cbbf28a86a7e22fb91903fbd4fb7dbc54b81041929d070457")
-        // .expect("msg");
-        let mut mnemonic_found = vec![0u8; 1];
-
-        let address = create_address();
-
-        let mnemonic_hi: cl_ulong = input_entropy.len() as u64;
 
         let input_entropy_buf = unsafe {
             core::create_buffer(
                 &context,
                 flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                5000000 * 32,
-                Some(&input_entropy),
+                received.len(),
+                Some(&received),
             )?
         };
 
@@ -362,7 +347,7 @@ fn main() {
     println!("the input param = {:?}", args);
 
     let content = fs::read_to_string(args[1].to_string()).unwrap();
-    let mut input_data: Vec<&str> = content.split("\n").collect();
+    let input_data: Vec<&str> = content.split("\n").collect();
 
     for s in &input_data {
         CONFIG_INPUT.lock().unwrap().push(s.to_string());
@@ -430,11 +415,11 @@ fn main() {
 
     // test();
 
-    // device_ids.into_par_iter().for_each(move |device_id| {
-    //     mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
-    // });
+    device_ids.into_par_iter().for_each(move |device_id| {
+        mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
+    });
 
-    words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
+    // words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
     // test_redis();
     // test_time();
     // test_bit();
@@ -442,8 +427,8 @@ fn main() {
     let s = "hello";
 
     // let (tx, rx) = mpsc::channel();
-    let (tx, rx) = mpsc::sync_channel(1000);
-    create_words_from_file(tx.clone());
+    // let (tx, rx) = mpsc::sync_channel(10);
+    // create_words_from_file(tx.clone());
 
     // let handle = thread::spawn(move || {
     //     let mut i = 0;
@@ -451,7 +436,7 @@ fn main() {
     //         println!("spawned thread print {}, s = {}", i, s);
     //         tx.send(String::from("hi")).unwrap();
 
-    //         thread::sleep(Duration::from_millis(100));
+    //         thread::sleep(Duration::from_millis(1000));
     //         i = i + 1;
     //     }
     // });
@@ -461,9 +446,9 @@ fn main() {
     // }
 
     // loop {
-    //     thread::sleep(Duration::from_millis(1000));
+    //     thread::sleep(Duration::from_millis(100));
 
-    //     let received = rx.try_recv().unwrap();
+    //     let received = rx.recv().unwrap();
     //     println!("Got: {}", received);
     // }
 
@@ -581,7 +566,8 @@ fn create_entropy() -> Vec<u8> {
 
 // 创建20字节的地址数组
 fn create_address() -> Vec<u8> {
-    let address = hex::decode("7127e93651CC9d3AD3c0e5499Dba43cB765783E2").expect("msg");
+    // let address = hex::decode("7127e93651CC9d3AD3c0e5499Dba43cB765783E2").expect("msg");
+    let address = hex::decode(&CONFIG_INPUT.lock().unwrap()[11]).expect("msg");
     address
 }
 
@@ -696,8 +682,9 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
     entropy
 }
 
-fn create_words_from_file(tx: SyncSender<Vec<u16>>) {
+fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     let word_index_12 = word_to_word_index(&CONFIG_INPUT.lock().unwrap()[0]);
+    let GPU_SIZE = 1;
 
     println!("word_index_12 = {:?}", word_index_12);
 
@@ -776,7 +763,10 @@ fn create_words_from_file(tx: SyncSender<Vec<u16>>) {
     let mut the_data = vec![0u16; 12];
 
     // 性能测试
-    let mut the_datas: Vec<Vec<u16>> = Vec::new();
+    let mut the_datas: Vec<u8> = Vec::new();
+
+    // 数据记数
+    let mut count = 0;
 
     while word0.next() {
         the_data[0] = word0.next_data();
@@ -828,16 +818,30 @@ fn create_words_from_file(tx: SyncSender<Vec<u16>>) {
 
                                                     // 拿到最终的助记词索引
 
-                                                    if the_datas.len() < 500000 {
-                                                        the_datas.push(the_data.clone());
+                                                    if count < GPU_SIZE {
+                                                        count = count + 1;
+                                                        let mut index_32: u16 = 0;
+                                                        while index_32 < 32 {
+                                                            the_datas
+                                                                .push(entity[index_32 as usize]);
+                                                            index_32 = index_32 + 1;
+                                                        }
                                                         // println!("llen = {}", the_datas.len())
                                                     } else {
+                                                        count = 0;
                                                         println!(
                                                             "RUST use time {:?}, len = {}",
                                                             now.elapsed().expect(""),
                                                             the_datas.len()
                                                         );
+
+                                                        println!("the_datas() = {:?}", the_datas);
+
+                                                        tx.send(the_datas.clone()).unwrap();
                                                         the_datas.clear();
+                                                        thread::sleep(Duration::from_millis(
+                                                            1000000000,
+                                                        ));
                                                     }
                                                     println!("the data = {:?}", the_data);
                                                 }
@@ -853,6 +857,9 @@ fn create_words_from_file(tx: SyncSender<Vec<u16>>) {
         }
         // println!("the child data = {:?}", word0.output);
     }
+
+    tx.send(the_datas).unwrap();
+
     // println!("index = {:?}", word0.output);
 }
 // 测试时间
