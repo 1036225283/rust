@@ -35,7 +35,7 @@ static void int_to_mnemonic(uchar *bytes32, uchar *mnemonic,
 
   sha256(&in, 32, &mnemonic_hash);
 
-  printf("\n\nthe mnemonic_hash = %x \n", mnemonic_hash[0]);
+  // printf("\n\nthe mnemonic_hash = %x \n", mnemonic_hash[0]);
 
   // for (int i = 0; i < 32; i++) {
   //   printf("%x", mnemonic_hash[i]);
@@ -157,7 +157,7 @@ __kernel void int_to_address(ulong input_entropy_size,
                              __global uchar *input_address,
                              __global uchar *out_mnemonic) {
   ulong idx = get_global_id(0);
-  printf("GPU idx = %d", idx);
+  // printf("GPU idx = %d", idx);
   if (idx > input_entropy_size) {
     return;
   }

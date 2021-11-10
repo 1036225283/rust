@@ -232,14 +232,14 @@ fn mnemonic_gpu(
 
     loop {
         let received = rx.recv().unwrap();
-        println!("the received = {:?}", received);
+        println!("the received.len = {}", received.len() / 32);
 
         let now = std::time::SystemTime::now();
 
-        let flag = 2;
-        if flag > 1 {
-            println!("RUST flag > 1");
-        }
+        // let flag = 2;
+        // if flag > 1 {
+        //     println!("RUST flag > 1");
+        // }
 
         let input_entropy_size: cl_ulong = (received.len() as u64 / 32);
         let items: u64 = input_entropy_size;
@@ -331,14 +331,15 @@ fn mnemonic_gpu(
                 "RUST SUCCESS !!! the out mnemonic = {}",
                 String::from_utf8(out_mnemonic).expect("msg")
             );
+            std::process::exit(0)
         }
 
         println!("RUST use time {:?}, ", now.elapsed().expect(""));
 
-        println!("RUST this is end ");
+        // println!("RUST this is end ");
 
-        assert!(flag < 1);
-        println!("RUST this assert ");
+        // assert!(flag < 1);
+        // println!("RUST this assert ");
     }
 }
 
@@ -669,22 +670,22 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
     // entropy[31] = ((input_word_index[22] & 31) << 3) as u8 | (input_word_index[23] >> 8) as u8;
     entropy[31] = ((input_word_index[22] & 31) << 3) as u8 | (input_word_index[23]) as u8;
 
-    let mut k = 0;
-    print!("words_to_32byte ");
-    while k < 32 {
-        print!("{:x}", entropy[k]);
-        // println!("test = {:b}", test); //输出二进制
+    // let mut k = 0;
+    // print!("words_to_32byte ");
+    // while k < 32 {
+    //     print!("{:x}", entropy[k]);
+    //     // println!("test = {:b}", test); //输出二进制
 
-        k = k + 1;
-    }
-    println!("");
+    //     k = k + 1;
+    // }
+    // println!("");
 
     entropy
 }
 
 fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     let word_index_12 = word_to_word_index(&CONFIG_INPUT.lock().unwrap()[0]);
-    let GPU_SIZE = 1;
+    let GPU_SIZE = 256000;
 
     println!("word_index_12 = {:?}", word_index_12);
 
@@ -829,21 +830,21 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
                                                         // println!("llen = {}", the_datas.len())
                                                     } else {
                                                         count = 0;
-                                                        println!(
-                                                            "RUST use time {:?}, len = {}",
-                                                            now.elapsed().expect(""),
-                                                            the_datas.len()
-                                                        );
+                                                        // println!(
+                                                        //     "RUST use time {:?}, len = {}",
+                                                        //     now.elapsed().expect(""),
+                                                        //     the_datas.len()
+                                                        // );
 
-                                                        println!("the_datas() = {:?}", the_datas);
+                                                        // println!("the_datas() = {:?}", the_datas);
 
                                                         tx.send(the_datas.clone()).unwrap();
                                                         the_datas.clear();
-                                                        thread::sleep(Duration::from_millis(
-                                                            1000000000,
-                                                        ));
+                                                        // thread::sleep(Duration::from_millis(
+                                                        //     1000000000,
+                                                        // ));
                                                     }
-                                                    println!("the data = {:?}", the_data);
+                                                    // println!("the data = {:?}", the_data);
                                                 }
                                             }
                                         }
