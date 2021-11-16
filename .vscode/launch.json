@@ -12,7 +12,7 @@
         "target create ${workspaceFolder}/target/debug/bip39-solver-gpu"
       ],
       "processCreateCommands": [
-        "settings set target.run-args value1 value2 value3",
+        "settings set target.run-args /home/xws/Desktop/input.txt",
         "process launch"
       ]
     },

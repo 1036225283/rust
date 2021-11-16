@@ -1,26 +1,13 @@
-use bitcoin_wallet::account::{Account, AccountAddressType, MasterAccount, Unlocker};
-use bitcoin_wallet::bitcoin::blockdata::script::Script;
-use bitcoin_wallet::bitcoin::blockdata::transaction::{
-    OutPoint, SigHashType, Transaction, TxIn, TxOut,
-};
-use bitcoin_wallet::bitcoin::blockdata::{opcodes, script};
-use bitcoin_wallet::bitcoin::consensus::encode::{deserialize, serialize};
 use hex;
 use ocl::builders::ContextProperties;
 use ocl::enums::ArgVal;
 use ocl::prm::cl_ulong;
 use ocl::{core, flags};
 use rayon::prelude::*;
-use redis::Commands;
-use reqwest;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::env;
 use std::ffi::CString;
 use std::fs;
-use std::ops::Index;
-use std::ptr::null;
-use std::str;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::Mutex;
 use std::thread;
@@ -33,26 +20,11 @@ lazy_static! {
     static ref CONFIG_INPUT: Mutex<Vec<String>> = Mutex::new(vec![]);
 }
 
-const PASSPHRASE: &str = "";
-const WORK_SERVER_URL: &str = "http://localhost:3000";
-const WORK_SERVER_SECRET: &str = "secret";
-const INPUT_TRANSACTION: &str = "0200000002b927da7d93d6168ada9d471aa4bea50c70323353aae68b39faa08ffc7ae15265010000006a473044022035dc74cb164947397d639ae6e5b148fa2b1f1d6a93239555b4b058425c6328b002206e90486b11da907e35a14b454b17bead964e1507821a99d7fe960d1643d13294012103786af4b32017ec640dba2d2a7e1fd5aa4a231a658e4cbc114d51c031576e19bcffffffff665a5990fd90f1e6457a0704da5a067a6caca6dd91e3e921869ce884bb4af8a6020000006a473044022022dfe92099a3f896ff84fdab6bd1d99c2c8a17d9ecaedd26f093cf444382e7220220118f77d80a36525c1d95f0bd990baa7ffbcf499ccf4f8289b39c2d4ee77e1068012103786af4b32017ec640dba2d2a7e1fd5aa4a231a658e4cbc114d51c031576e19bcffffffff0300e1f5050000000017a914ada12b113d9b19614757d19fc08ddd534bf0227687ea4b04000000000017a9140997ff827d755a356d7ddb83a789b5954611c9c78758f8f698080000001976a914cebb2851a9c7cfe2582c12ecaf7f3ff4383d1dc088ac00000000";
-
 #[derive(Deserialize, Debug)]
 struct WorkResponse {
     indices: Vec<u128>,
     offset: u128,
     batch_size: u64,
-}
-
-struct WorkResponse2 {
-    arr: Vec<u64>,
-}
-struct Work {
-    start_hi: u64,
-    start_lo: u64,
-    batch_size: u64,
-    offset: u128,
 }
 
 // 直接在本机生成助记词
@@ -456,124 +428,11 @@ fn main() {
     // handle.join().unwrap();
 }
 
-fn spawn_function() {
-    for i in 0..5 {
-        println!("spawned thread print {}", i);
-        thread::sleep(Duration::from_millis(1));
-    }
-}
-// 根据助记词生成向量
-// 根据向量生成助记词
-fn test() {
-    let s1 = String::from("hello");
-    let s2 = &s1;
-    println!("hello = {}", words[1]);
-    show(&s1);
-    println!("hello = {}", s1);
-}
-
-fn show(str: &String) {
-    println!("show = {}", str)
-}
-
-fn test_create_entropy() {
-    let b2: Vec<u8> = create_entropy();
-
-    let mut i = 0;
-    while i < 32 {
-        println!("y = {:x}", b2[b2.len() - 32 + i]);
-        i = i + 1;
-    }
-}
-
-// 取数据
-fn test_redis() -> Vec<u8> {
-    let mut b2: Vec<u8> = Vec::new();
-
-    let client = redis::Client::open("redis://127.0.0.1");
-    let mut con = client
-        .expect("get redis error")
-        .get_connection()
-        .expect("redis.get_collection error");
-
-    let test: String = redis::cmd("GET")
-        .arg("RUST:TEST")
-        .query(&mut con)
-        .expect("get val error");
-    println!("get redis key test = {}", test);
-
-    // redis list 中1000000条
-    let key = "RUST:TEST:1";
-    let mut i = 0;
-    let mut size: isize = 0;
-    let len: isize = con.llen(key).expect("msg");
-    if len > 500000 {
-        size = 500000;
-    } else {
-        size = len;
-    }
-
-    let items: Vec<String> = con.lrange(key, -size, -1).expect("msg");
-
-    while i < items.len() {
-        // println!("word = {}", items[i]);
-
-        let entropy = words_to_32byte(&items[i]);
-        let mut j = 0;
-
-        while j < 32 {
-            b2.push(entropy[j]);
-            j = j + 1;
-        }
-        i = i + 1;
-    }
-
-    println!("the test len = {}, itmes.len = {}", size, items.len());
-    b2.to_vec()
-}
-
-// 创建500000个32位数组
-fn create_entropy() -> Vec<u8> {
-    let mut b2: Vec<u8> = Vec::new();
-    // 填充entropy
-    let input_entropy =
-        hex::decode("6becf1663a53eb3cbbf28a86a7e22fb91903fbd4fb7dbc54b81041929d070457")
-            .expect("msg");
-    let mut i = 0;
-
-    while i < 5000000 {
-        let mut j = 0;
-        while j < 32 {
-            b2.push(input_entropy[j]);
-            j = j + 1;
-        }
-        i = i + 1;
-    }
-
-    let test_entropy =
-        hex::decode("8a5ac968ea198138f26d68099028d4417da0d30deb4030a0a32eaf7a41991523")
-            .expect("msg");
-
-    // 倒数第二个
-    let len = b2.len();
-    let mut i = 0;
-    while i < 32 {
-        b2[len - 32 + i] = test_entropy[i];
-        i = i + 1;
-    }
-    // println!("the last = {}", b2[b2.len() - 1]);
-    b2.to_vec()
-}
-
 // 创建20字节的地址数组
 fn create_address() -> Vec<u8> {
     // let address = hex::decode("7127e93651CC9d3AD3c0e5499Dba43cB765783E2").expect("msg");
     let address = hex::decode(&CONFIG_INPUT.lock().unwrap()[11]).expect("msg");
     address
-}
-
-fn five() -> i32 {
-    5
 }
 
 // 获取助记词的index
@@ -863,51 +722,6 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
 
     // println!("index = {:?}", word0.output);
 }
-// 测试时间
-fn test_time() {
-    println!("RUST test time");
-    let now = std::time::SystemTime::now();
-
-    println!("{:?}", now.elapsed().expect(""))
-}
-
-// 测试位操作
-fn test_bit() {
-    let mut bytes = [0u8; 32];
-    // let ok = hex::decode("a686d128f4a65574902e5c4c2d795d33c51cd7b822c1cc8014a6ce56939f4d62").expect("msg");
-    let ok =
-        hex::decode("1a28c7918ab3e1c75571ba16b7a6e689b718a1326c6e89132ed376c4237fd4").expect("msg");
-    // println!("ok = {:?}", ok);
-    println!("ok = {:?}", ok);
-    let mut test: u16 = 1;
-    // test = test << 1;
-    test = test | ok[0] as u16;
-    println!("test = {:?}", test);
-    println!("test = {:#b}", test); //输出二进制
-    println!("test = {:b}", test); //输出二进制
-
-    println!("");
-    let mut i = 0;
-    while i < 32 {
-        print!("{:10b} ", ok[i]); //输出二进制,b代表二进制,8代表填充长度为8位
-        i = i + 1;
-    }
-
-    let x = 42;
-    let y = "a686d128f4a65574902e5c4c2d795d33c51cd7b822c1cc8014a6ce56939f4d62"
-        .as_bytes()
-        .to_vec();
-
-    let d = "a686d128f4a65574902e5c4c2d795d33c51cd7b822c1cc8014a6ce56939f4d62"
-        .as_bytes()
-        .to_vec();
-    let z = String::from_utf8(y);
-    println!("y = {:?}", z);
-    println!("y = {:x}", d[0]);
-
-    let a = std::format!("{:#X}", x);
-    println!("{}", &a);
-}
 
 // 18 kB
 static words: [&str; 2048] = [
@@ -1122,71 +936,4 @@ static words: [&str; 2048] = [
     "wood", "wool", "word", "work", "world", "worry", "worth", "wrap", "wreck", "wrestle", "wrist",
     "write", "wrong", "yard", "year", "yellow", "you", "young", "youth", "zebra", "zero", "zone",
     "zoo",
-];
-// 2kB
-static word_lengths: [i16; 2048] = [
-    7, 7, 4, 5, 5, 6, 6, 8, 6, 5, 6, 8, 7, 6, 7, 4, 8, 7, 6, 3, 6, 5, 7, 6, 5, 3, 6, 7, 6, 5, 5, 7,
-    6, 7, 6, 6, 6, 5, 3, 5, 5, 5, 3, 3, 7, 5, 5, 5, 7, 5, 5, 3, 5, 5, 6, 5, 5, 7, 4, 5, 6, 7, 7, 5,
-    6, 6, 7, 6, 7, 5, 5, 5, 6, 5, 8, 6, 7, 6, 7, 7, 7, 3, 5, 7, 6, 5, 7, 5, 4, 6, 4, 5, 5, 3, 5, 5,
-    4, 6, 7, 6, 6, 5, 3, 8, 6, 7, 3, 6, 7, 5, 6, 6, 6, 7, 4, 6, 6, 8, 7, 7, 5, 6, 4, 6, 4, 6, 7, 7,
-    5, 5, 5, 4, 7, 5, 7, 4, 4, 8, 5, 5, 3, 7, 7, 4, 6, 6, 6, 3, 6, 7, 6, 4, 5, 6, 6, 5, 4, 6, 7, 6,
-    4, 6, 5, 6, 6, 7, 5, 4, 5, 7, 4, 6, 6, 7, 6, 7, 3, 4, 4, 7, 4, 5, 6, 5, 5, 5, 7, 5, 5, 5, 5, 5,
-    7, 6, 4, 4, 5, 5, 4, 4, 4, 4, 4, 5, 4, 5, 6, 6, 6, 4, 6, 6, 3, 3, 7, 5, 5, 5, 5, 5, 6, 5, 6, 5,
-    6, 5, 5, 8, 6, 6, 5, 7, 5, 5, 6, 5, 6, 7, 5, 4, 4, 6, 6, 6, 6, 6, 5, 3, 8, 4, 6, 5, 4, 7, 5, 5,
-    6, 4, 4, 4, 4, 6, 4, 3, 5, 6, 5, 6, 5, 6, 6, 7, 7, 7, 3, 6, 4, 5, 6, 5, 4, 4, 4, 6, 6, 6, 3, 7,
-    5, 8, 6, 6, 5, 7, 4, 7, 6, 6, 6, 7, 6, 7, 5, 5, 8, 6, 5, 7, 6, 5, 4, 5, 5, 6, 4, 6, 5, 7, 5, 5,
-    7, 6, 6, 7, 7, 5, 5, 5, 8, 6, 7, 4, 5, 5, 4, 7, 4, 4, 5, 5, 6, 5, 6, 5, 5, 6, 4, 5, 4, 5, 5, 5,
-    5, 4, 5, 7, 6, 5, 5, 7, 4, 6, 4, 4, 7, 5, 6, 7, 4, 7, 5, 6, 7, 7, 7, 7, 8, 7, 8, 7, 8, 4, 4, 6,
-    4, 5, 4, 4, 7, 4, 6, 5, 7, 6, 6, 6, 5, 6, 5, 6, 5, 4, 5, 5, 6, 5, 5, 5, 6, 5, 4, 7, 5, 5, 6, 4,
-    5, 6, 5, 7, 5, 6, 7, 6, 5, 3, 7, 4, 7, 3, 8, 7, 7, 7, 5, 7, 6, 4, 5, 3, 6, 4, 5, 6, 6, 4, 8, 4,
-    3, 4, 6, 6, 6, 8, 6, 7, 8, 8, 4, 7, 6, 4, 6, 5, 7, 6, 6, 6, 7, 4, 6, 6, 7, 5, 6, 6, 8, 6, 6, 4,
-    7, 7, 6, 6, 7, 6, 6, 7, 4, 7, 5, 4, 6, 4, 6, 7, 7, 7, 6, 8, 6, 4, 8, 8, 7, 4, 7, 8, 7, 8, 6, 6,
-    7, 5, 6, 8, 3, 4, 7, 6, 6, 6, 5, 4, 4, 6, 4, 5, 6, 5, 7, 4, 5, 5, 5, 5, 5, 4, 5, 4, 4, 3, 4, 4,
-    4, 6, 4, 5, 4, 5, 7, 5, 5, 5, 4, 5, 6, 4, 4, 4, 7, 7, 4, 4, 7, 6, 3, 5, 6, 5, 5, 8, 7, 7, 8, 8,
-    5, 4, 6, 6, 7, 6, 7, 6, 7, 5, 6, 5, 3, 7, 7, 5, 6, 7, 6, 6, 7, 5, 6, 6, 6, 6, 6, 5, 6, 5, 8, 7,
-    5, 5, 3, 5, 5, 7, 5, 5, 6, 5, 7, 6, 7, 6, 8, 4, 5, 6, 5, 7, 6, 8, 6, 7, 6, 7, 8, 7, 7, 5, 5, 4,
-    6, 6, 6, 6, 7, 6, 7, 6, 5, 3, 7, 6, 4, 7, 4, 5, 5, 4, 5, 4, 6, 6, 3, 5, 7, 4, 7, 3, 5, 6, 7, 5,
-    8, 7, 8, 7, 3, 4, 4, 6, 5, 8, 5, 5, 3, 5, 7, 5, 6, 4, 4, 6, 5, 4, 4, 6, 6, 4, 4, 5, 6, 4, 3, 7,
-    3, 4, 5, 5, 4, 6, 4, 6, 4, 5, 5, 5, 6, 5, 5, 3, 4, 5, 3, 4, 4, 6, 4, 4, 5, 6, 6, 4, 7, 5, 7, 6,
-    6, 5, 3, 7, 5, 8, 5, 6, 6, 4, 5, 5, 5, 6, 5, 4, 3, 5, 7, 4, 6, 6, 4, 6, 7, 4, 3, 6, 7, 6, 6, 7,
-    3, 4, 4, 6, 5, 4, 7, 6, 5, 6, 7, 7, 5, 5, 4, 6, 6, 7, 4, 4, 4, 6, 5, 5, 5, 7, 5, 5, 5, 5, 4, 4,
-    4, 7, 4, 4, 5, 7, 6, 6, 6, 4, 4, 5, 5, 5, 5, 5, 7, 5, 5, 4, 5, 4, 7, 5, 4, 5, 5, 5, 5, 5, 6, 3,
-    3, 5, 4, 4, 6, 7, 4, 5, 6, 4, 5, 7, 3, 4, 4, 6, 4, 6, 5, 5, 8, 6, 5, 6, 4, 3, 4, 6, 4, 4, 4, 3,
-    4, 7, 5, 6, 4, 4, 7, 6, 4, 5, 4, 4, 4, 6, 5, 8, 4, 5, 4, 5, 3, 4, 5, 6, 5, 7, 6, 4, 6, 5, 4, 7,
-    6, 3, 4, 4, 8, 4, 6, 3, 7, 7, 5, 7, 7, 6, 6, 6, 7, 7, 4, 7, 6, 8, 5, 8, 6, 8, 6, 7, 6, 6, 7, 7,
-    6, 6, 6, 5, 8, 5, 7, 6, 6, 6, 7, 7, 6, 8, 4, 6, 6, 7, 4, 6, 7, 5, 4, 5, 6, 6, 3, 4, 7, 5, 5, 5,
-    3, 4, 4, 7, 3, 5, 5, 4, 6, 6, 4, 4, 8, 4, 4, 7, 3, 4, 3, 6, 4, 7, 4, 3, 7, 4, 6, 4, 4, 5, 5, 4,
-    3, 5, 5, 6, 4, 4, 4, 8, 6, 5, 5, 5, 5, 7, 4, 3, 4, 7, 5, 4, 6, 4, 5, 5, 7, 4, 3, 5, 6, 7, 5, 4,
-    6, 4, 7, 6, 6, 5, 4, 7, 7, 7, 4, 4, 5, 4, 4, 5, 4, 4, 6, 4, 6, 4, 6, 4, 4, 7, 5, 4, 5, 6, 4, 4,
-    7, 4, 6, 4, 5, 5, 7, 6, 5, 5, 6, 6, 7, 3, 5, 6, 4, 4, 4, 5, 4, 6, 3, 6, 7, 5, 7, 6, 5, 6, 5, 6,
-    6, 6, 8, 4, 4, 6, 5, 8, 4, 6, 6, 7, 4, 6, 4, 7, 4, 8, 5, 5, 6, 4, 6, 6, 7, 4, 5, 5, 5, 5, 4, 7,
-    5, 6, 6, 8, 4, 7, 5, 4, 7, 5, 6, 7, 6, 6, 4, 7, 3, 5, 7, 6, 5, 6, 3, 6, 7, 6, 7, 5, 4, 5, 4, 7,
-    8, 6, 6, 5, 8, 5, 4, 5, 4, 6, 4, 8, 6, 6, 8, 5, 4, 6, 6, 7, 4, 5, 4, 6, 6, 5, 6, 6, 4, 4, 4, 8,
-    7, 7, 6, 5, 4, 3, 7, 7, 5, 4, 4, 4, 5, 5, 5, 7, 6, 6, 5, 4, 7, 4, 7, 6, 5, 3, 7, 6, 5, 3, 3, 4,
-    6, 6, 7, 7, 6, 7, 5, 5, 7, 4, 3, 5, 6, 5, 3, 4, 3, 5, 7, 4, 4, 3, 5, 6, 4, 4, 5, 7, 6, 6, 6, 5,
-    7, 5, 8, 5, 6, 8, 6, 7, 5, 7, 5, 6, 7, 4, 4, 4, 3, 5, 6, 6, 5, 4, 6, 4, 4, 6, 4, 5, 5, 5, 7, 5,
-    6, 6, 4, 6, 5, 4, 5, 4, 7, 6, 7, 5, 4, 7, 5, 6, 4, 7, 7, 3, 7, 6, 6, 6, 7, 6, 6, 3, 5, 5, 6, 8,
-    5, 6, 7, 5, 3, 6, 4, 5, 4, 7, 4, 6, 5, 5, 5, 6, 7, 5, 4, 6, 6, 5, 4, 6, 4, 4, 5, 5, 4, 6, 4, 4,
-    4, 7, 7, 8, 8, 4, 6, 7, 7, 6, 5, 8, 6, 7, 6, 7, 7, 6, 7, 5, 5, 7, 5, 8, 6, 7, 5, 7, 7, 7, 6, 7,
-    7, 7, 5, 8, 7, 7, 5, 7, 6, 7, 4, 4, 5, 7, 5, 5, 5, 8, 6, 7, 5, 4, 3, 6, 7, 7, 7, 7, 8, 5, 4, 4,
-    5, 6, 7, 4, 4, 5, 5, 4, 4, 5, 5, 4, 5, 6, 5, 5, 4, 4, 6, 5, 3, 5, 5, 4, 6, 5, 7, 6, 7, 6, 6, 7,
-    6, 7, 6, 6, 6, 6, 7, 6, 5, 7, 6, 4, 6, 8, 6, 6, 6, 5, 4, 6, 6, 6, 7, 6, 7, 6, 8, 6, 8, 8, 6, 6,
-    7, 6, 7, 6, 6, 6, 6, 3, 6, 4, 4, 4, 5, 5, 5, 5, 4, 4, 6, 4, 6, 5, 5, 4, 5, 5, 6, 6, 7, 4, 6, 4,
-    4, 6, 5, 5, 5, 5, 6, 4, 3, 4, 3, 6, 5, 3, 6, 7, 4, 4, 5, 6, 5, 4, 6, 4, 6, 4, 7, 7, 5, 7, 4, 3,
-    5, 4, 5, 7, 5, 6, 6, 7, 8, 8, 5, 5, 6, 6, 5, 3, 6, 6, 4, 6, 6, 7, 8, 4, 4, 7, 6, 4, 7, 6, 5, 8,
-    6, 7, 7, 6, 5, 5, 6, 5, 7, 5, 4, 5, 7, 6, 5, 5, 4, 6, 5, 4, 5, 4, 5, 8, 5, 6, 5, 7, 3, 7, 4, 4,
-    5, 5, 4, 6, 4, 5, 6, 7, 6, 5, 4, 5, 6, 7, 3, 4, 5, 6, 3, 5, 4, 5, 5, 4, 4, 5, 7, 5, 5, 6, 4, 6,
-    4, 4, 5, 5, 5, 5, 5, 6, 5, 5, 4, 5, 4, 4, 6, 6, 4, 4, 4, 5, 7, 5, 8, 5, 7, 4, 4, 5, 4, 4, 5, 4,
-    6, 5, 5, 5, 7, 5, 5, 7, 5, 5, 5, 6, 5, 6, 5, 4, 6, 5, 5, 7, 5, 5, 4, 5, 6, 6, 3, 6, 7, 8, 6, 7,
-    5, 5, 6, 5, 5, 5, 5, 4, 5, 5, 4, 4, 6, 5, 5, 5, 5, 7, 5, 5, 5, 5, 8, 6, 6, 6, 8, 7, 5, 7, 5, 7,
-    6, 6, 7, 4, 6, 6, 5, 7, 4, 6, 3, 5, 6, 5, 6, 7, 4, 7, 5, 8, 8, 6, 7, 7, 7, 5, 4, 5, 5, 5, 5, 4,
-    5, 6, 5, 6, 7, 5, 6, 5, 6, 3, 4, 6, 4, 4, 4, 6, 4, 5, 6, 4, 5, 4, 4, 3, 6, 6, 4, 4, 4, 4, 5, 4,
-    5, 4, 6, 5, 4, 5, 4, 7, 5, 6, 5, 5, 7, 6, 4, 5, 4, 6, 4, 4, 3, 5, 6, 5, 5, 7, 5, 7, 3, 8, 6, 5,
-    6, 8, 4, 6, 7, 4, 5, 3, 5, 6, 5, 7, 8, 4, 5, 7, 6, 5, 4, 3, 5, 5, 7, 6, 5, 8, 4, 5, 6, 4, 5, 4,
-    5, 5, 5, 5, 7, 4, 4, 6, 7, 5, 4, 5, 7, 5, 5, 3, 4, 7, 6, 4, 6, 6, 4, 6, 6, 6, 5, 4, 5, 3, 4, 7,
-    4, 8, 6, 7, 5, 7, 5, 4, 6, 6, 7, 7, 6, 4, 8, 7, 6, 5, 7, 6, 6, 7, 6, 4, 5, 5, 5, 4, 5, 3, 4, 6,
-    7, 5, 7, 6, 6, 5, 5, 6, 5, 3, 6, 5, 7, 4, 5, 7, 6, 6, 7, 5, 4, 6, 7, 4, 6, 7, 6, 7, 7, 7, 5, 4,
-    7, 7, 6, 7, 5, 4, 5, 6, 5, 5, 5, 5, 4, 7, 6, 4, 6, 4, 5, 4, 4, 4, 6, 4, 7, 4, 7, 4, 4, 5, 5, 4,
-    3, 6, 6, 4, 6, 7, 3, 7, 7, 5, 7, 4, 3, 5, 4, 5, 5, 4, 5, 4, 7, 4, 5, 4, 4, 4, 3, 6, 4, 4, 4, 6,
-    6, 4, 6, 4, 4, 7, 4, 5, 6, 4, 4, 4, 4, 5, 5, 5, 4, 5, 7, 5, 5, 5, 4, 4, 6, 3, 5, 5, 5, 4, 4, 3,
 ];
