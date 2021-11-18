@@ -38,6 +38,10 @@ struct Word {
     inner_index: u16,
     // 输出数据
     output: Vec<u16>,
+    // 单词索引
+    word_index: u16,
+    // 索引数据
+    indexs: Vec<u16>,
 }
 
 impl Default for Word {
@@ -46,8 +50,10 @@ impl Default for Word {
             optional: Vec::new(),
             column_index: 0,
             inner_index: 0,
+            word_index: 0,
             input: Vec::new(),
             output: Vec::new(),
+            indexs: Vec::new(),
         }
     }
 }
@@ -64,8 +70,6 @@ impl Word {
 
     // 判断是否还有其他下一个助记词
     fn next(&mut self) -> bool {
-        // 先判断是否还有备选词
-
         if self.inner_index
             < WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len() as u16
         {
@@ -73,6 +77,7 @@ impl Word {
         }
 
         self.column_index = self.column_index + 1;
+        self.inner_index = 0;
 
         if self.column_index < (self.input.len() as u16) {
             return true;
@@ -170,6 +175,20 @@ impl Word {
         }
         // println!("set_optional_for_group = {:?}", self.optional);
     }
+
+    // 设置助记词索引
+    fn set_word_index(&mut self, word_index: u16) {
+        self.word_index = word_index;
+    }
+
+    // 设置助记词索引数组
+    fn set_indexs(&mut self, indexs: Vec<u16>) {
+        self.indexs = indexs;
+    }
+
+    fn modify_indexs(&mut self) {
+        self.indexs[self.word_index as usize] = self.input[self.column_index as usize];
+    }
 }
 
 fn mnemonic_gpu(
@@ -195,9 +214,10 @@ fn mnemonic_gpu(
     // 在这里加载所有的代码
     let (tx, rx) = mpsc::sync_channel(1000);
 
-    let handle = thread::spawn(move || loop {
+    let handle = thread::spawn(move || {
         create_words_from_file(tx.clone());
-        thread::sleep(Duration::from_millis(100));
+        // thread::sleep(Duration::from_millis(100));
+        println!("create finsh... ...");
     });
 
     let address = create_address();
@@ -542,6 +562,7 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
     entropy
 }
 
+// 9个单词的次序是固定的
 fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     let word_index_12 = word_to_word_index(&CONFIG_INPUT.lock().unwrap()[0]);
     let GPU_SIZE = 256000;
@@ -588,10 +609,26 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     word8.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[9]);
     // 第10个助记词的备选词是2048个单词
     word9.set_optional_all();
+    // word9.set_optional(vec![9]);
     // 第11个助记词的备选词的2048的几分之几,分母是GPU的数量
     word10.set_optional_for_group(&CONFIG_INPUT.lock().unwrap()[10]);
+    // word10.set_optional(vec![10]);
     // 第12个助记词的备选是1,2,3,4,5,6,7
     word11.set_optional(vec![1, 2, 3, 4, 5, 6, 7]);
+
+    // 设置助记词索引
+    word0.set_word_index(0);
+    word1.set_word_index(1);
+    word2.set_word_index(2);
+    word3.set_word_index(3);
+    word4.set_word_index(4);
+    word5.set_word_index(5);
+    word6.set_word_index(6);
+    word7.set_word_index(7);
+    word8.set_word_index(8);
+    word9.set_word_index(9);
+    word10.set_word_index(10);
+    word11.set_word_index(11);
 
     WORDS.lock().unwrap().push(word0.optional.clone());
     WORDS.lock().unwrap().push(word1.optional.clone());
@@ -614,13 +651,12 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
 
     println!("len = {}", WORDS.lock().unwrap().len());
 
-    // word1.set
-    println!("index = {}", word0.next());
-
     let now = std::time::SystemTime::now();
 
     // 助记词数据
     let mut the_data = vec![0u16; 12];
+    // 助记词索引
+    let the_index = vec![0u16; 11];
 
     // 性能测试
     let mut the_datas: Vec<u8> = Vec::new();
@@ -630,37 +666,100 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
 
     while word0.next() {
         the_data[0] = word0.next_data();
+
+        word0.set_indexs(the_index.clone());
+        word0.modify_indexs();
+
         word1.set_input(word0.child_input_data());
         while word1.next() {
             the_data[1] = word1.next_data();
+
+            word1.set_indexs(word0.indexs.clone());
+            word1.modify_indexs();
+            if !judge_order(word1.indexs.clone(), 1) {
+                continue;
+            }
             word2.set_input(word1.child_input_data());
             while word2.next() {
                 the_data[2] = word2.next_data();
+
+                word2.set_indexs(word1.indexs.clone());
+                word2.modify_indexs();
+                if !judge_order(word2.indexs.clone(), 2) {
+                    continue;
+                }
                 word3.set_input(word2.child_input_data());
                 while word3.next() {
                     the_data[3] = word3.next_data();
+
+                    word3.set_indexs(word2.indexs.clone());
+                    word3.modify_indexs();
+                    if !judge_order(word3.indexs.clone(), 3) {
+                        continue;
+                    }
                     word4.set_input(word3.child_input_data());
                     while word4.next() {
                         the_data[4] = word4.next_data();
+
+                        word4.set_indexs(word3.indexs.clone());
+                        word4.modify_indexs();
+                        if !judge_order(word4.indexs.clone(), 4) {
+                            continue;
+                        }
                         word5.set_input(word4.child_input_data());
                         while word5.next() {
                             the_data[5] = word5.next_data();
+
+                            word5.set_indexs(word4.indexs.clone());
+                            word5.modify_indexs();
+                            if !judge_order(word5.indexs.clone(), 5) {
+                                continue;
+                            }
                             word6.set_input(word5.child_input_data());
                             while word6.next() {
                                 the_data[6] = word6.next_data();
+
+                                word6.set_indexs(word5.indexs.clone());
+                                word6.modify_indexs();
+                                if !judge_order(word6.indexs.clone(), 6) {
+                                    continue;
+                                }
                                 word7.set_input(word6.child_input_data());
                                 while word7.next() {
                                     the_data[7] = word7.next_data();
+
+                                    word7.set_indexs(word6.indexs.clone());
+                                    word7.modify_indexs();
+                                    if !judge_order(word7.indexs.clone(), 7) {
+                                        continue;
+                                    }
                                     word8.set_input(word7.child_input_data());
                                     while word8.next() {
                                         the_data[8] = word8.next_data();
+
+                                        word8.set_indexs(word7.indexs.clone());
+                                        word8.modify_indexs();
+                                        if !judge_order(word8.indexs.clone(), 8) {
+                                            continue;
+                                        }
                                         word9.set_input(word8.child_input_data());
                                         while word9.next() {
                                             the_data[9] = word9.next_data();
 
+                                            word9.set_indexs(word8.indexs.clone());
+                                            word9.modify_indexs();
+                                            if !judge_order(word9.indexs.clone(), 9) {
+                                                continue;
+                                            }
                                             word10.set_input(word9.child_input_data());
                                             while word10.next() {
                                                 the_data[10] = word10.next_data();
+
+                                                word10.set_indexs(word9.indexs.clone());
+                                                word10.modify_indexs();
+                                                if !judge_order(word10.indexs.clone(), 10) {
+                                                    continue;
+                                                }
                                                 let mut data_11 = 0;
                                                 while data_11 <= 7 {
                                                     the_data[11] = data_11;
@@ -673,6 +772,7 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
                                                         index_9 = index_9 + 1;
                                                     }
 
+                                                    // println!("the_indexs = {:?}", word10.indexs);
                                                     let entity =
                                                         words_index_to_32byte(word_index_12_copy);
 
@@ -695,8 +795,6 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
                                                         //     the_datas.len()
                                                         // );
 
-                                                        // println!("the_datas() = {:?}", the_datas);
-
                                                         tx.send(the_datas.clone()).unwrap();
                                                         the_datas.clear();
                                                         // thread::sleep(Duration::from_millis(
@@ -718,9 +816,41 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
         // println!("the child data = {:?}", word0.output);
     }
 
+    println!("last size = {}", the_datas.len());
     tx.send(the_datas).unwrap();
 
     // println!("index = {:?}", word0.output);
+}
+
+// 判断9个助记词的顺序是否正常
+fn judge_order(indexs: Vec<u16>, end: usize) -> bool {
+    let mut i = 1;
+    let mut before = indexs[0];
+    while i <= end {
+        // if self.indexs[i] == before {
+        //     return false;
+        // }
+
+        if indexs[i] == 9 || indexs[i] == 10 {
+            i = i + 1;
+            continue;
+        }
+
+        if before == 9 || before == 10 {
+            before = indexs[i];
+            i = i + 1;
+            continue;
+        }
+
+        if before >= indexs[i] {
+            return false;
+        } else {
+            before = indexs[i];
+        }
+        i = i + 1;
+    }
+
+    return true;
 }
 
 // 18 kB
