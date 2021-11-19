@@ -73,6 +73,7 @@ impl Word {
         }
 
         self.column_index = self.column_index + 1;
+        self.inner_index = 0;
 
         if self.column_index < (self.input.len() as u16) {
             return true;
@@ -195,9 +196,10 @@ fn mnemonic_gpu(
     // 在这里加载所有的代码
     let (tx, rx) = mpsc::sync_channel(1000);
 
-    let handle = thread::spawn(move || loop {
+    let handle = thread::spawn(move || {
         create_words_from_file(tx.clone());
-        thread::sleep(Duration::from_millis(100));
+        // thread::sleep(Duration::from_millis(100));
+        println!("create finsh... ...");
     });
 
     let address = create_address();
