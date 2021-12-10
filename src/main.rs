@@ -772,7 +772,6 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
                                                         index_9 = index_9 + 1;
                                                     }
 
-                                                    // println!("the_indexs = {:?}", word10.indexs);
                                                     let entity =
                                                         words_index_to_32byte(word_index_12_copy);
 
@@ -800,6 +799,7 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
                                                         // thread::sleep(Duration::from_millis(
                                                         //     1000000000,
                                                         // ));
+                                                        println!("the_indexs = {:?}", the_data);
                                                     }
                                                     // println!("the data = {:?}", the_data);
                                                 }
