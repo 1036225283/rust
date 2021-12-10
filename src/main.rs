@@ -10,7 +10,7 @@ use std::ffi::CString;
 use std::fs;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::Mutex;
-use std::thread;
+use std::thread::{self, Thread};
 use std::time::Duration;
 
 #[macro_use]
@@ -204,9 +204,17 @@ fn mnemonic_gpu(
 
     let address = create_address();
 
+    let mut receive_num = 0;
+
     loop {
         let received = rx.recv().unwrap();
-        println!("the received.len = {}", received.len() / 32);
+        println!(
+            "the received.len = {} receive_num = {}",
+            received.len() / 32,
+            receive_num
+        );
+
+        receive_num = receive_num + 1;
 
         let now = std::time::SystemTime::now();
 
@@ -242,7 +250,7 @@ fn mnemonic_gpu(
             core::create_buffer(
                 &context,
                 flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                20,
+                address.len(),
                 Some(&address),
             )?
         };
@@ -433,7 +441,8 @@ fn main() {
 // 创建20字节的地址数组
 fn create_address() -> Vec<u8> {
     // let address = hex::decode("7127e93651CC9d3AD3c0e5499Dba43cB765783E2").expect("msg");
-    let address = hex::decode(&CONFIG_INPUT.lock().unwrap()[11]).expect("msg");
+    let str = &CONFIG_INPUT.lock().unwrap()[11];
+    let address = hex::decode(str.replace(" ", "")).expect("msg");
     address
 }
 
@@ -688,6 +697,10 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
                                                                 .push(entity[index_32 as usize]);
                                                             index_32 = index_32 + 1;
                                                         }
+                                                        // tx.send(the_datas.clone()).unwrap();
+                                                        // the_datas.clear();
+                                                        // thread::sleep(Duration::from_millis(100));
+
                                                         // println!("llen = {}", the_datas.len())
                                                     } else {
                                                         count = 0;

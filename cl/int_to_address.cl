@@ -11,7 +11,17 @@ static void test_keccak_256() {
 
   printf("\n\n");
 }
-
+// 比对地址
+static void check_address(uchar *address, uchar *input_address, uchar index,
+                          bool *flag) {
+  for (int i = 12; i < 32; i++) {
+    if (address[i] != input_address[20 * index + (i - 12)]) {
+      *flag = 0;
+      return;
+    }
+  }
+  *flag = 1;
+}
 // 测试提取index
 static void int_to_mnemonic(uchar *bytes32, uchar *mnemonic,
                             int *mnemonic_index_) {
@@ -204,6 +214,7 @@ __kernel void int_to_address(ulong input_entropy_size,
 
   uchar pub_key[64] = {0};
   uchar address[32] = {0};
+  uchar input_address_copy[80] = {0};
   extended_private_key_t target_key;
   extended_public_key_t target_public_key;
   hardened_private_child_from_private(&master_private, &target_key, 44);
@@ -221,19 +232,19 @@ __kernel void int_to_address(ulong input_entropy_size,
 
   keccak_256(&address, 32, &pub_key, 64);
   // printf("\n\nGPU address = 0x");
-
-  bool flag = 1;
-  for (int i = 12; i < 32; i++) {
-    if (address[i] != input_address[i - 12]) {
-      flag = 0;
-      break;
-    }
-    // printf("%x", address[i]);
+  for (int i = 0; i < 80; i++) {
+    input_address_copy[i] = input_address[i];
+    // printf("%x", input_address[i]);
   }
 
-  if (flag == 1) {
-    for (int i = 0; i < mnemonic_length; i++) {
-      out_mnemonic[i] = mnemonic[i];
+  bool flag = 0;
+  for (int i = 0; i < 4; i++) {
+    check_address(&address, &input_address_copy, i, &flag);
+
+    if (flag == 1) {
+      for (int i = 0; i < mnemonic_length; i++) {
+        out_mnemonic[i] = mnemonic[i];
+      }
     }
   }
 }
