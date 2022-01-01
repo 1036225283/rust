@@ -8,6 +8,7 @@ use serde::Deserialize;
 use std::env;
 use std::ffi::CString;
 use std::fs;
+use std::os::unix::prelude::OsStringExt;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::Mutex;
 use std::thread::{self, Thread};
@@ -28,6 +29,7 @@ struct WorkResponse {
 }
 
 // 直接在本机生成助记词
+#[derive(Debug, Clone)]
 struct Word {
     // 备选数据
     optional: Vec<u16>,
@@ -70,13 +72,6 @@ impl Word {
             < WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len() as u16
         {
             return true;
-        }
-
-        self.column_index = self.column_index + 1;
-        self.inner_index = 0;
-
-        if self.column_index < (self.input.len() as u16) {
-            return true;
         } else {
             return false;
         }
@@ -85,18 +80,7 @@ impl Word {
     // 获取下一个助记词
     fn next_data(&mut self) -> u16 {
         // 先取备选词,如果备选词没了,再选下一个序列
-        // input存储序列
-        // words存储真正的助记单词
-        // 从input_index存储已经遍历的位置中取出序列索引
-        //
 
-        // println!(
-        //     "the input1 = {:?}, column_index = {}, inner_index = {} ,len = {}",
-        //     self.input,
-        //     self.input[self.column_index as usize],
-        //     self.inner_index,
-        //     WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len()
-        // );
         if self.inner_index
             < WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize].len() as u16
         {
@@ -105,16 +89,7 @@ impl Word {
             self.inner_index = self.inner_index + 1;
             return data;
         } else {
-            // self.column_index = self.column_index + 1;
-            // println!(
-            //     "the input = {:?}, column_index = {}, inner_index = {}",
-            //     self.input, self.input[self.column_index as usize], self.inner_index
-            // );
-            self.inner_index = 0;
-
-            let data = WORDS.lock().unwrap()[self.input[self.column_index as usize] as usize]
-                [self.inner_index as usize];
-            return data;
+            return 10000;
         }
     }
 
@@ -639,6 +614,51 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     // 数据记数
     let mut count = 0;
 
+    // 生成一个数组
+    let mut input_level: Vec<Word> = Vec::new();
+    input_level.push(word0.clone());
+    input_level.push(word1.clone());
+    input_level.push(word2.clone());
+    input_level.push(word3.clone());
+    input_level.push(word4.clone());
+    input_level.push(word5.clone());
+    input_level.push(word6.clone());
+    input_level.push(word7.clone());
+    input_level.push(word8.clone());
+
+    println!("input_level");
+    show(input_level.clone());
+    let mut first_level_index = 9;
+    while (first_level_index >= 0) {
+        let mut first_level = insert(
+            input_level.clone(),
+            first_level_index as usize,
+            word9.clone(),
+        );
+
+        println!("first_level");
+        show(first_level.clone());
+
+        let mut second_level_index = 9;
+        while (second_level_index >= 0) {
+            let mut second_level = insert(
+                first_level.clone(),
+                second_level_index as usize,
+                word9.clone(),
+            );
+
+            second_level_index = second_level_index - 1;
+        }
+
+        // first_level.as_mut()
+
+        first_level_index = first_level_index - 1;
+    }
+
+    thread::sleep(Duration::from_millis(10000));
+
+    // the_data.
+
     while word0.next() {
         the_data[0] = word0.next_data();
         word1.set_input(word0.child_input_data());
@@ -736,6 +756,37 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     tx.send(the_datas).unwrap();
 
     // println!("index = {:?}", word0.output);
+}
+
+// 插入排序
+fn insert(input: Vec<Word>, index: usize, word: Word) -> Vec<Word> {
+    // 第一步,扩容
+    let mut list: Vec<Word> = input.clone();
+    list.push(word.clone());
+
+    // 第二步,移动元素,留出空位
+    let mut i = input.len();
+    while i > index {
+        list[i + 1] = list[i].clone();
+        i = i - 1;
+    }
+
+    // 第三步,填补空位
+    list[index] = word;
+    return list;
+}
+
+// 显示数据
+fn show(input: Vec<Word>) {
+    let mut i = 0;
+    while i < input.len() {
+        if input[i].optional.len() > 10 {
+            println!("show {} = {}", i, input[i].optional.len());
+        } else {
+            println!("show {} = {:?}", i, input[i].optional);
+        }
+        i = i + 1;
+    }
 }
 
 // 18 kB
