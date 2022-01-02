@@ -608,9 +608,6 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     // 助记词数据
     let mut the_data = vec![0u16; 12];
 
-    // 性能测试
-    let mut the_datas: Vec<u8> = Vec::new();
-
     // 数据记数
     let mut count = 0;
 
@@ -629,6 +626,8 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     println!("input_level");
     show(input_level.clone());
     let mut first_level_index = 9;
+    println!("first_level");
+
     while (first_level_index >= 0) {
         let mut first_level = insert(
             input_level.clone(),
@@ -636,109 +635,115 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
             word9.clone(),
         );
 
-        println!("first_level");
-        show(first_level.clone());
+        // show(first_level.clone());
 
-        let mut second_level_index = 9;
+        let mut second_level_index = 10;
         while (second_level_index >= 0) {
             let mut second_level = insert(
                 first_level.clone(),
                 second_level_index as usize,
-                word9.clone(),
+                word10.clone(),
             );
+            // show(second_level.clone());
+            word0 = second_level[0].clone();
+            word1 = second_level[1].clone();
+            word2 = second_level[2].clone();
+            word3 = second_level[3].clone();
+            word4 = second_level[4].clone();
+            word5 = second_level[5].clone();
+            word6 = second_level[6].clone();
+            word7 = second_level[7].clone();
+            word8 = second_level[8].clone();
+            word9 = second_level[9].clone();
+            word10 = second_level[10].clone();
+            word11 = second_level[11].clone();
+            // 性能测试
+            let mut the_datas: Vec<u8> = Vec::new();
+            while word0.next() {
+                the_data[0] = word0.next_data();
+                word1.set_input(word0.child_input_data());
+                while word1.next() {
+                    the_data[1] = word1.next_data();
+                    word2.set_input(word1.child_input_data());
+                    while word2.next() {
+                        the_data[2] = word2.next_data();
+                        word3.set_input(word2.child_input_data());
+                        while word3.next() {
+                            the_data[3] = word3.next_data();
+                            word4.set_input(word3.child_input_data());
+                            while word4.next() {
+                                the_data[4] = word4.next_data();
+                                word5.set_input(word4.child_input_data());
+                                while word5.next() {
+                                    the_data[5] = word5.next_data();
+                                    word6.set_input(word5.child_input_data());
+                                    while word6.next() {
+                                        the_data[6] = word6.next_data();
+                                        word7.set_input(word6.child_input_data());
+                                        while word7.next() {
+                                            the_data[7] = word7.next_data();
+                                            word8.set_input(word7.child_input_data());
+                                            while word8.next() {
+                                                the_data[8] = word8.next_data();
+                                                word9.set_input(word8.child_input_data());
+                                                while word9.next() {
+                                                    the_data[9] = word9.next_data();
 
-            second_level_index = second_level_index - 1;
-        }
+                                                    word10.set_input(word9.child_input_data());
+                                                    while word10.next() {
+                                                        the_data[10] = word10.next_data();
+                                                        let mut data_11 = 0;
+                                                        while data_11 <= 7 {
+                                                            the_data[11] = data_11;
+                                                            data_11 = data_11 + 1;
+                                                            let mut word_index_12_copy =
+                                                                word_index_12.clone();
+                                                            let mut index_9 = 0;
+                                                            while index_9 < the_data.len() {
+                                                                word_index_12_copy
+                                                                    .push(the_data[index_9]);
+                                                                index_9 = index_9 + 1;
+                                                            }
 
-        // first_level.as_mut()
+                                                            let entity = words_index_to_32byte(
+                                                                word_index_12_copy,
+                                                            );
 
-        first_level_index = first_level_index - 1;
-    }
+                                                            // 拿到最终的助记词索引
 
-    thread::sleep(Duration::from_millis(10000));
+                                                            if count < GPU_SIZE {
+                                                                count = count + 1;
+                                                                let mut index_32: u16 = 0;
+                                                                while index_32 < 32 {
+                                                                    the_datas.push(
+                                                                        entity[index_32 as usize],
+                                                                    );
+                                                                    index_32 = index_32 + 1;
+                                                                }
+                                                                // tx.send(the_datas.clone()).unwrap();
+                                                                // the_datas.clear();
+                                                                // thread::sleep(Duration::from_millis(100));
 
-    // the_data.
+                                                                // println!("llen = {}", the_datas.len())
+                                                            } else {
+                                                                count = 0;
+                                                                // println!(
+                                                                //     "RUST use time {:?}, len = {}",
+                                                                //     now.elapsed().expect(""),
+                                                                //     the_datas.len()
+                                                                // );
 
-    while word0.next() {
-        the_data[0] = word0.next_data();
-        word1.set_input(word0.child_input_data());
-        while word1.next() {
-            the_data[1] = word1.next_data();
-            word2.set_input(word1.child_input_data());
-            while word2.next() {
-                the_data[2] = word2.next_data();
-                word3.set_input(word2.child_input_data());
-                while word3.next() {
-                    the_data[3] = word3.next_data();
-                    word4.set_input(word3.child_input_data());
-                    while word4.next() {
-                        the_data[4] = word4.next_data();
-                        word5.set_input(word4.child_input_data());
-                        while word5.next() {
-                            the_data[5] = word5.next_data();
-                            word6.set_input(word5.child_input_data());
-                            while word6.next() {
-                                the_data[6] = word6.next_data();
-                                word7.set_input(word6.child_input_data());
-                                while word7.next() {
-                                    the_data[7] = word7.next_data();
-                                    word8.set_input(word7.child_input_data());
-                                    while word8.next() {
-                                        the_data[8] = word8.next_data();
-                                        word9.set_input(word8.child_input_data());
-                                        while word9.next() {
-                                            the_data[9] = word9.next_data();
+                                                                // println!("the_datas() = {:?}", the_datas);
 
-                                            word10.set_input(word9.child_input_data());
-                                            while word10.next() {
-                                                the_data[10] = word10.next_data();
-                                                let mut data_11 = 0;
-                                                while data_11 <= 7 {
-                                                    the_data[11] = data_11;
-                                                    data_11 = data_11 + 1;
-                                                    let mut word_index_12_copy =
-                                                        word_index_12.clone();
-                                                    let mut index_9 = 0;
-                                                    while index_9 < the_data.len() {
-                                                        word_index_12_copy.push(the_data[index_9]);
-                                                        index_9 = index_9 + 1;
-                                                    }
-
-                                                    let entity =
-                                                        words_index_to_32byte(word_index_12_copy);
-
-                                                    // 拿到最终的助记词索引
-
-                                                    if count < GPU_SIZE {
-                                                        count = count + 1;
-                                                        let mut index_32: u16 = 0;
-                                                        while index_32 < 32 {
-                                                            the_datas
-                                                                .push(entity[index_32 as usize]);
-                                                            index_32 = index_32 + 1;
+                                                                tx.send(the_datas.clone()).unwrap();
+                                                                the_datas.clear();
+                                                                // thread::sleep(Duration::from_millis(
+                                                                //     1000000000,
+                                                                // ));
+                                                            }
+                                                            // println!("the data = {:?}", the_data);
                                                         }
-                                                        // tx.send(the_datas.clone()).unwrap();
-                                                        // the_datas.clear();
-                                                        // thread::sleep(Duration::from_millis(100));
-
-                                                        // println!("llen = {}", the_datas.len())
-                                                    } else {
-                                                        count = 0;
-                                                        // println!(
-                                                        //     "RUST use time {:?}, len = {}",
-                                                        //     now.elapsed().expect(""),
-                                                        //     the_datas.len()
-                                                        // );
-
-                                                        // println!("the_datas() = {:?}", the_datas);
-
-                                                        tx.send(the_datas.clone()).unwrap();
-                                                        the_datas.clear();
-                                                        // thread::sleep(Duration::from_millis(
-                                                        //     1000000000,
-                                                        // ));
                                                     }
-                                                    // println!("the data = {:?}", the_data);
                                                 }
                                             }
                                         }
@@ -748,14 +753,18 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
                         }
                     }
                 }
+                // println!("the child data = {:?}", word0.output);
             }
+
+            tx.send(the_datas).unwrap();
+
+            second_level_index = second_level_index - 1;
         }
-        // println!("the child data = {:?}", word0.output);
+
+        // first_level.as_mut()
+
+        first_level_index = first_level_index - 1;
     }
-
-    tx.send(the_datas).unwrap();
-
-    // println!("index = {:?}", word0.output);
 }
 
 // 插入排序
@@ -765,9 +774,12 @@ fn insert(input: Vec<Word>, index: usize, word: Word) -> Vec<Word> {
     list.push(word.clone());
 
     // 第二步,移动元素,留出空位
-    let mut i = input.len();
-    while i > index {
+    let mut i = input.len() - 1;
+    while i >= index {
         list[i + 1] = list[i].clone();
+        if i == 0 {
+            break;
+        }
         i = i - 1;
     }
 
@@ -781,12 +793,13 @@ fn show(input: Vec<Word>) {
     let mut i = 0;
     while i < input.len() {
         if input[i].optional.len() > 10 {
-            println!("show {} = {}", i, input[i].optional.len());
+            print!("{} ", input[i].optional.len());
         } else {
-            println!("show {} = {:?}", i, input[i].optional);
+            print!("{:?} ", input[i].optional);
         }
         i = i + 1;
     }
+    println!("")
 }
 
 // 18 kB
