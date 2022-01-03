@@ -656,7 +656,6 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
             word8 = second_level[8].clone();
             word9 = second_level[9].clone();
             word10 = second_level[10].clone();
-            word11 = second_level[11].clone();
             // 性能测试
             let mut the_datas: Vec<u8> = Vec::new();
             while word0.next() {
