@@ -13,6 +13,18 @@ use std::sync::Mutex;
 use std::thread::{self, Thread};
 use std::time::Duration;
 
+use opencl3::command_queue::CommandQueue;
+use opencl3::context::Context;
+use opencl3::device::{get_all_devices, Device, CL_DEVICE_TYPE_GPU};
+use opencl3::error_codes::cl_int;
+use opencl3::kernel::{ExecuteKernel, Kernel};
+use opencl3::memory::{CL_MAP_READ, CL_MAP_WRITE};
+use opencl3::program::{Program, CL_STD_2_0};
+use opencl3::types::CL_BLOCKING;
+use opencl3::Result;
+use serde::de::DeserializeSeed;
+use std::ptr;
+
 #[macro_use]
 extern crate lazy_static;
 lazy_static! {
@@ -175,157 +187,139 @@ impl Word {
 
 fn mnemonic_gpu(
     platform_id: core::types::abs::PlatformId,
-    device_id: core::types::abs::DeviceId,
-    src: std::ffi::CString,
+    src: &String,
     kernel_name: &String,
-) -> ocl::core::Result<()> {
-    let context_properties = ContextProperties::new().platform(platform_id);
-    let context =
-        core::create_context(Some(&context_properties), &[device_id], None, None).unwrap();
-    let program = core::create_program_with_source(&context, &[src]).unwrap();
-    core::build_program(
-        &program,
-        Some(&[device_id]),
-        &CString::new("").unwrap(),
-        None,
-        None,
-    )
-    .unwrap();
-    let queue = core::create_command_queue(&context, &device_id, None).unwrap();
+    context: opencl3::context::Context,
+) {
+    // Build the OpenCL program source and create the kernel.
+    let program = Program::create_and_build_from_source(&context, &src, CL_STD_2_0)
+        .expect("Program::create_and_build_from_source failed");
 
-    // 在这里加载所有的代码
-    let (tx, rx) = mpsc::sync_channel(1000);
+    // let context_properties = ContextProperties::new().platform(platform_id);
+    // let context =
+    //     core::create_context(Some(&context_properties), &[device_id], None, None).unwrap();
+    // let program = core::create_program_with_source(&context, &[src]).unwrap();
+    // core::build_program(
+    //     &program,
+    //     Some(&[device_id]),
+    //     &CString::new("").unwrap(),
+    //     None,
+    //     None,
+    // )
+    // .unwrap();
+    // let queue = core::create_command_queue(&context, &device_id, None).unwrap();
 
-    let handle = thread::spawn(move || {
-        create_words_from_file(tx.clone());
-        // thread::sleep(Duration::from_millis(100));
-        println!("create finsh... ...");
-    });
+    // // 在这里加载所有的代码
+    // let (tx, rx) = mpsc::sync_channel(1000);
 
-    let address = create_address();
+    // let handle = thread::spawn(move || {
+    //     create_words_from_file(tx.clone());
+    //     // thread::sleep(Duration::from_millis(100));
+    //     println!("create finsh... ...");
+    // });
 
-    let mut receive_num = 0;
+    // let address = create_address();
 
-    loop {
-        let received = rx.recv().unwrap();
-        println!(
-            "the received.len = {} receive_num = {}",
-            received.len() / 32,
-            receive_num
-        );
+    // let mut receive_num = 0;
 
-        receive_num = receive_num + 1;
+    // loop {
+    //     let received = rx.recv().unwrap();
+    //     println!(
+    //         "the received.len = {} receive_num = {}",
+    //         received.len() / 32,
+    //         receive_num
+    //     );
 
-        let now = std::time::SystemTime::now();
+    //     receive_num = receive_num + 1;
 
-        // let flag = 2;
-        // if flag > 1 {
-        //     println!("RUST flag > 1");
-        // }
+    //     let now = std::time::SystemTime::now();
 
-        let input_entropy_size: cl_ulong = (received.len() as u64 / 32);
-        let items: u64 = input_entropy_size;
+    //     let input_entropy_size: cl_ulong = (received.len() as u64 / 32);
+    //     let items: u64 = input_entropy_size;
 
-        let mut out_mnemonic = vec![0u8; 256];
+    //     let mut out_mnemonic = vec![0u8; 256];
 
-        let input_entropy_buf = unsafe {
-            core::create_buffer(
-                &context,
-                flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                received.len(),
-                Some(&received),
-            )?
-        };
+    //     let input_entropy_buf = unsafe {
+    //         core::create_buffer(
+    //             &context,
+    //             flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
+    //             received.len(),
+    //             Some(&received),
+    //         )?
+    //     };
 
-        let out_mnemonic_buf = unsafe {
-            core::create_buffer(
-                &context,
-                flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                256,
-                Some(&out_mnemonic),
-            )?
-        };
+    //     let out_mnemonic_buf = unsafe {
+    //         core::create_buffer(
+    //             &context,
+    //             flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
+    //             256,
+    //             Some(&out_mnemonic),
+    //         )?
+    //     };
 
-        let input_address_buf = unsafe {
-            core::create_buffer(
-                &context,
-                flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                address.len(),
-                Some(&address),
-            )?
-        };
+    //     let input_address_buf = unsafe {
+    //         core::create_buffer(
+    //             &context,
+    //             flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
+    //             address.len(),
+    //             Some(&address),
+    //         )?
+    //     };
 
-        let kernel = core::create_kernel(&program, kernel_name)?;
+    //     let kernel = core::create_kernel(&program, kernel_name)?;
 
-        /**
-        __kernel void int_to_address(ulong input_size, __global uchar *input_entropy,
-                             __global uchar *target_mnemonic,
-                             __global uchar *target_address) {
-        */
-        core::set_kernel_arg(&kernel, 0, ArgVal::scalar(&input_entropy_size))?;
-        core::set_kernel_arg(&kernel, 1, ArgVal::mem(&input_entropy_buf))?;
-        core::set_kernel_arg(&kernel, 2, ArgVal::mem(&input_address_buf))?;
-        core::set_kernel_arg(&kernel, 3, ArgVal::mem(&out_mnemonic_buf))?;
+    //     /**
+    //     __kernel void int_to_address(ulong input_size, __global uchar *input_entropy,
+    //                          __global uchar *target_mnemonic,
+    //                          __global uchar *target_address) {
+    //     */
+    //     core::set_kernel_arg(&kernel, 0, ArgVal::scalar(&input_entropy_size))?;
+    //     core::set_kernel_arg(&kernel, 1, ArgVal::mem(&input_entropy_buf))?;
+    //     core::set_kernel_arg(&kernel, 2, ArgVal::mem(&input_address_buf))?;
+    //     core::set_kernel_arg(&kernel, 3, ArgVal::mem(&out_mnemonic_buf))?;
 
-        unsafe {
-            core::enqueue_kernel(
-                &queue,
-                &kernel,
-                1,
-                None,
-                &[items as usize, 1, 1],
-                None,
-                None::<core::Event>,
-                None::<&mut core::Event>,
-            )?;
-        }
+    //     unsafe {
+    //         core::enqueue_kernel(
+    //             &queue,
+    //             &kernel,
+    //             1,
+    //             None,
+    //             &[items as usize, 1, 1],
+    //             None,
+    //             None::<core::Event>,
+    //             None::<&mut core::Event>,
+    //         )?;
+    //     }
 
-        unsafe {
-            core::enqueue_read_buffer(
-                &queue,
-                &out_mnemonic_buf,
-                true,
-                0,
-                &mut out_mnemonic,
-                None::<core::Event>,
-                None::<&mut core::Event>,
-            )?;
-        }
+    //     unsafe {
+    //         core::enqueue_read_buffer(
+    //             &queue,
+    //             &out_mnemonic_buf,
+    //             true,
+    //             0,
+    //             &mut out_mnemonic,
+    //             None::<core::Event>,
+    //             None::<&mut core::Event>,
+    //         )?;
+    //     }
 
-        // unsafe {
-        //     core::enqueue_read_buffer(
-        //         &queue,
-        //         &mnemonic_found_buf,
-        //         true,
-        //         0,
-        //         &mut mnemonic_found,
-        //         None::<core::Event>,
-        //         None::<&mut core::Event>,
-        //     )?;
-        // }
+    //     if out_mnemonic[0] != 0 {
+    //         let s = match String::from_utf8((&out_mnemonic[0..256]).to_vec()) {
+    //             Ok(v) => v,
+    //             Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+    //         };
+    //         println!(
+    //             "RUST SUCCESS !!! the out mnemonic = {}",
+    //             String::from_utf8(out_mnemonic).expect("msg")
+    //         );
+    //         std::process::exit(0)
+    //     }
 
-        if out_mnemonic[0] != 0 {
-            let s = match String::from_utf8((&out_mnemonic[0..256]).to_vec()) {
-                Ok(v) => v,
-                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-            };
-            println!(
-                "RUST SUCCESS !!! the out mnemonic = {}",
-                String::from_utf8(out_mnemonic).expect("msg")
-            );
-            std::process::exit(0)
-        }
-
-        println!("RUST use time {:?}, ", now.elapsed().expect(""));
-
-        // println!("RUST this is end ");
-
-        // assert!(flag < 1);
-        // println!("RUST this assert ");
-    }
+    //     println!("RUST use time {:?}, ", now.elapsed().expect(""));
+    // }
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     println!("the input param = {:?}", args);
 
@@ -336,6 +330,16 @@ fn main() {
         CONFIG_INPUT.lock().unwrap().push(s.to_string());
     }
     println!("the CONFIG = {:?}", CONFIG_INPUT.lock().unwrap());
+
+    // Find a usable device for this application
+    let device_id = *get_all_devices(CL_DEVICE_TYPE_GPU)?
+        .first()
+        .expect("no device found in platform");
+
+    // Create OpenCL context from the OpenCL svm device
+    let device = Device::new(device_id);
+    // Create a Context on an OpenCL device
+    let context = Context::from_device(&device).expect("Context::from_device failed");
 
     let platform_id = core::default_platform().unwrap();
     let device_ids =
@@ -390,7 +394,7 @@ fn main() {
         raw_cl_file.push_str("\n");
     }
 
-    let src_cstring = CString::new(raw_cl_file).unwrap();
+    // let src_cstring = CString::new(raw_cl_file).unwrap();
 
     // just_seed::test();
 
@@ -398,16 +402,12 @@ fn main() {
 
     // test();
 
-    device_ids.into_par_iter().for_each(move |device_id| {
-        mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
-    });
+    mnemonic_gpu(platform_id, &raw_cl_file, &kernel_name, context);
 
     // words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
     // test_redis();
     // test_time();
     // test_bit();
-
-    let s = "hello";
 
     // let (tx, rx) = mpsc::channel();
     // let (tx, rx) = mpsc::sync_channel(10);
@@ -436,6 +436,7 @@ fn main() {
     // }
 
     // handle.join().unwrap();
+    Ok(())
 }
 
 // 创建20字节的地址数组

@@ -179,9 +179,10 @@ void uncompressed_public_key(extended_public_key_t *pub,
                                 SECP256K1_EC_UNCOMPRESSED);
 }
 
-void sha256d(uchar *input, int input_len, char *output) {
+void sha256d(uchar *input, int *input_len, char *output) {
   sha256(input, input_len, output);
-  sha256(output, 32, output);
+  int size = 32;
+  sha256(output, &size, output);
 }
 
 void hash160(uchar *input, int input_len, char *output) {

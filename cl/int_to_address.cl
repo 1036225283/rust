@@ -42,8 +42,8 @@ static void int_to_mnemonic(uchar *bytes32, uchar *mnemonic,
   for (int i = 0; i < 32; i++) {
     in[i] = bytes32[i];
   }
-
-  sha256(&in, 32, &mnemonic_hash);
+  int tmp_size = 32;
+  sha256(&in, &tmp_size, &mnemonic_hash);
 
   // printf("\n\nthe mnemonic_hash = %x \n", mnemonic_hash[0]);
 
