@@ -3,6 +3,8 @@ name = "bip39-solver-gpu"
 version = "0.1.0"
 authors = ["johncantrell97"]
 edition = "2018"
+build = "build.rs"
+
 
 [dependencies]
 ocl = "0.19"
@@ -12,6 +14,11 @@ reqwest = { version = "0.10.6", features = ["blocking", "json"] }
 serde = { version = "1", features = ["derive"] }
 bitcoin-wallet = { git = "https://github.com/johncantrell97/rust-wallet" }
 lazy_static = "1.4.0"
+libc = "0.2"
 
 [dependencies.redis]
 version = "*"
+
+
+[build-dependencies]
+cc = "1.0"

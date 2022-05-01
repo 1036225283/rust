@@ -4,7 +4,7 @@ use ocl::enums::ArgVal;
 use ocl::prm::cl_ulong;
 use ocl::{core, flags};
 use rayon::prelude::*;
-use serde::Deserialize;
+use serde::{de, Deserialize};
 use std::env;
 use std::ffi::CString;
 use std::fs;
@@ -12,6 +12,40 @@ use std::sync::mpsc::{self, SyncSender};
 use std::sync::Mutex;
 use std::thread::{self, Thread};
 use std::time::Duration;
+
+use std::os::raw::{c_char, c_float, c_int};
+
+extern crate libc;
+
+// #[link(name = "cfoo")]
+extern "C" {
+    fn double_input(input: libc::c_int) -> libc::c_int;
+    fn luck() -> libc::in_addr;
+    fn show(input: *const i8);
+    fn print_data(p_stu: *mut CStudent);
+    fn fill_data(p_stu: *mut CStudent);
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct CStudent {
+    pub num: c_int,
+    pub total: c_int,
+    pub name: [c_char; 238068],
+    pub scores: [c_float; 3],
+}
+
+// Default constructor
+impl Default for CStudent {
+    fn default() -> Self {
+        CStudent {
+            num: 0 as c_int,
+            total: 0 as c_int,
+            name: [0 as c_char; 238068],
+            scores: [0.0 as c_float; 3],
+        }
+    }
+}
 
 #[macro_use]
 extern crate lazy_static;
@@ -398,16 +432,65 @@ fn main() {
 
     // test();
 
-    device_ids.into_par_iter().for_each(move |device_id| {
-        mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
-    });
+    // device_ids.into_par_iter().for_each(move |device_id| {
+    //     mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
+    // });
 
     // words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
     // test_redis();
     // test_time();
     // test_bit();
 
+   
+    let c_to_print = CString::new("Hello, world!").expect("CString::new failed");
+    let s = &c_to_print[..];
+    println!("test {:?}",&c_to_print[..]);
+    // unsafe { show((c_to_print.as_ptr())) };
+
+    let mut vec2: Vec<i8> = Vec::new();
+    let mut s = String::from("runoob");
+    let mut arr: [u8; 5] = [1, 3, 5, 7, 9];
+    let mut part = &arr[0..3];
+    // for i in part.iter() {
+    //     println!("{}", i);
+    // }
+
+    // 初始化切片
+    // let mut char_array = [0i8; 20];
+    let mut char_array_src =&(src_cstring.to_bytes_with_nul())[..];
+    let mut char_array =[0i8;238068];
+    //     pub name: [c_char; 238067],
+
+
+    for (dest, src) in char_array.iter_mut().zip(char_array_src.iter()) {
+        *dest = *src as _;
+        // println!("test {}", dest);
+    }
+
+    let scores = [0.1, 0.2, 0.3];
+
+    // println!(" ss = {:?}", char_array.clone());
+    let new_stu: CStudent = CStudent { num: 12, total: 13, name: char_array, scores: scores };
+
+    // let scc = changeCString(c_to_print);
+    // println!("rust side print new_stu: {:?}", scores);
+    // println!("rust side print new_stu: {:?}", new_stu);
+    let box_new_stu = Box::new(new_stu);
+    let p_stu = Box::into_raw(box_new_stu);
+
+     unsafe {
+        fill_data(p_stu);
+        // print_data(p_stu);
+        //Box::from_raw(p_stu);
+        // println!("rust side print Bob: {:?}", Box::from_raw(p_stu));
+    } 
+
     let s = "hello";
+    let input = 4;
+    let output = unsafe { double_input(input) };
+    let t = unsafe { luck() };
+    println!("{} * 2 = {} {} ", input, output,src_cstring.to_bytes_with_nul().len());
+
 
     // let (tx, rx) = mpsc::channel();
     // let (tx, rx) = mpsc::sync_channel(10);
@@ -436,6 +519,19 @@ fn main() {
     // }
 
     // handle.join().unwrap();
+}
+
+//c语言字符串
+fn changeCString(input: CString) -> Vec<i8> {
+    let mut tmp: Vec<i8> = Vec::new();
+    let arr = input.as_bytes();
+
+    let mut i = 0;
+    while i < arr.len() {
+        tmp.push((arr[i as usize]) as i8);
+        i = i + 1;
+    }
+    return tmp;
 }
 
 // 创建20字节的地址数组
