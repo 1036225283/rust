@@ -30,6 +30,30 @@ typedef struct {
   public_key_t public_key;
 } extended_public_key_t;
 
+void public_from_private(extended_private_key_t *priv,
+                         extended_public_key_t *pub) {
+  pub->network = priv->network;
+  pub->depth = priv->depth;
+  pub->child_number = priv->child_number;
+  memcpy(&pub->parent_fingerprint, &priv->parent_fingerprint, 4);
+  memcpy(&pub->chain_code, &priv->chain_code, 32);
+  secp256k1_ec_pubkey_create(&pub->public_key.key, &priv->private_key.key);
+  // printf("\n\npublic key = \n");
+  // for (int i = 0; i < 64; i++) {
+  //   printf("%x,", pub->public_key.key.data[i]);
+  // }
+}
+
+void serialized_public_key(extended_public_key_t *pub, uchar *serialized_key) {
+  secp256k1_ec_pubkey_serialize(serialized_key, 33, &pub->public_key.key,
+                                SECP256K1_EC_COMPRESSED);
+}
+void uncompressed_public_key(extended_public_key_t *pub,
+                             uchar *serialized_key) {
+  secp256k1_ec_pubkey_serialize(serialized_key, 65, &pub->public_key.key,
+                                SECP256K1_EC_UNCOMPRESSED);
+}
+
 void hmac_sha512_(uchar *key, int key_length_bytes, uchar *message,
                   int message_length_bytes, uchar *output) {
   uchar ipad_key[128];
@@ -64,6 +88,7 @@ void hmac_sha512_(uchar *key, int key_length_bytes, uchar *message,
 
   sha512(&inner_concat, 192, output);
 }
+
 // sha512_result[64]
 static void hmac_sha512(unsigned char *keyInput, unsigned int keyLen,
                         unsigned char *pass, unsigned int passLen,
@@ -120,71 +145,7 @@ static void hmac_sha512(unsigned char *keyInput, unsigned int keyLen,
   sha512(&key_previous_concat, 192, sha512_result);
 }
 
-void new_master_from_seed(uchar network, uchar *seed,
-                          extended_private_key_t *master) {
-  uchar key[12] = {0x42, 0x69, 0x74, 0x63, 0x6f, 0x69,
-                   0x6e, 0x20, 0x73, 0x65, 0x65, 0x64};
-  uchar hmacsha512_result[64] = {0};
-  hmac_sha512(&key, 12, seed, 64, &hmacsha512_result);
-
-  // for (int i = 0; i < 12; i++) {
-  //   printf("%c", key[i]);
-  // }
-  // printf("\n\nmaster private key = \n");
-  // for (int i = 0; i <= 64; i++) {
-  //   printf("%x,", hmacsha512_result[i]);
-  // }
-
-  private_key_t pkey;
-  pkey.compressed = false;
-  pkey.network = network;
-  memcpy_offset(&pkey.key, &hmacsha512_result, 0, 32);
-  master->network = network;
-  master->depth = 0;
-  master->parent_fingerprint[0] = 0x00;
-  master->parent_fingerprint[1] = 0x00;
-  master->parent_fingerprint[2] = 0x00;
-  master->parent_fingerprint[3] = 0x00;
-  master->child_number = 0;
-  master->private_key = pkey;
-  memcpy_offset(&master->chain_code, &hmacsha512_result, 32, 32);
-  // printf("\n\nchain code = \n");
-  // for (int i = 0; i <= 32; i++) {
-  //   printf("%x,", master->chain_code[i]);
-  // }
-}
-
-void public_from_private(extended_private_key_t *priv,
-                         extended_public_key_t *pub) {
-  pub->network = priv->network;
-  pub->depth = priv->depth;
-  pub->child_number = priv->child_number;
-  memcpy(&pub->parent_fingerprint, &priv->parent_fingerprint, 4);
-  memcpy(&pub->chain_code, &priv->chain_code, 32);
-  secp256k1_ec_pubkey_create(&pub->public_key.key, &priv->private_key.key);
-  // printf("\n\npublic key = \n");
-  // for (int i = 0; i < 64; i++) {
-  //   printf("%x,", pub->public_key.key.data[i]);
-  // }
-}
-
-void serialized_public_key(extended_public_key_t *pub, uchar *serialized_key) {
-  secp256k1_ec_pubkey_serialize(serialized_key, 33, &pub->public_key.key,
-                                SECP256K1_EC_COMPRESSED);
-}
-
-void uncompressed_public_key(extended_public_key_t *pub,
-                             uchar *serialized_key) {
-  secp256k1_ec_pubkey_serialize(serialized_key, 65, &pub->public_key.key,
-                                SECP256K1_EC_UNCOMPRESSED);
-}
-
-void sha256d(uchar *input, int input_len, char *output) {
-  sha256(input, input_len, output);
-  sha256(output, 32, output);
-}
-
-void hash160(uchar *input, int input_len, char *output) {
+void hash160(uchar *input, int *input_len, char *output) {
   uchar sha256_result[32] = {0};
   sha256(input, input_len, &sha256_result);
   ripemd160(&sha256_result, 32, output);
@@ -297,5 +258,39 @@ void hardened_private_child_from_private(extended_private_key_t *parent,
   // printf("\n\nhardened private child key = \n");
   // for (int i = 0; i < 32; i++) {
   //   printf("%x,", child->private_key.key[i]);
+  // }
+}
+
+void new_master_from_seed(uchar network, uchar *seed,
+                          extended_private_key_t *master) {
+  uchar key[12] = {0x42, 0x69, 0x74, 0x63, 0x6f, 0x69,
+                   0x6e, 0x20, 0x73, 0x65, 0x65, 0x64};
+  uchar hmacsha512_result[64] = {0};
+  hmac_sha512(&key, 12, seed, 64, &hmacsha512_result);
+
+  // for (int i = 0; i < 12; i++) {
+  //   printf("%c", key[i]);
+  // }
+  // printf("\n\nmaster private key = \n");
+  // for (int i = 0; i <= 64; i++) {
+  //   printf("%x,", hmacsha512_result[i]);
+  // }
+
+  private_key_t pkey;
+  pkey.compressed = false;
+  pkey.network = network;
+  memcpy_offset(&pkey.key, &hmacsha512_result, 0, 32);
+  master->network = network;
+  master->depth = 0;
+  master->parent_fingerprint[0] = 0x00;
+  master->parent_fingerprint[1] = 0x00;
+  master->parent_fingerprint[2] = 0x00;
+  master->parent_fingerprint[3] = 0x00;
+  master->child_number = 0;
+  master->private_key = pkey;
+  memcpy_offset(&master->chain_code, &hmacsha512_result, 32, 32);
+  // printf("\n\nchain code = \n");
+  // for (int i = 0; i <= 32; i++) {
+  //   printf("%x,", master->chain_code[i]);
   // }
 }
