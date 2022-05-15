@@ -539,12 +539,7 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
 
 fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     let mut word_index_12 = word_to_word_index(&CONFIG_INPUT.lock().unwrap()[0]);
-    // 填充后12位
-    let mut index = 12;
-    while index > 0 {
-        word_index_12.push(0);
-        index = index - 1;
-    }
+
     let GPU_SIZE = 256000;
 
     println!("word_index_12 = {:?}", word_index_12);
@@ -624,7 +619,6 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     //构筑10个元素的数组,其中,前9位填充的是输入的9个助记词
     let mut input_1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 999];
     let mut input_5 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-    word_index_12 = copy(word_index_12, input_5.to_vec());
 
     // 填充9个助记词
     input_1[0] = get_word_index(&CONFIG_INPUT.lock().unwrap()[1]);
@@ -636,15 +630,26 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     input_1[6] = get_word_index(&CONFIG_INPUT.lock().unwrap()[7]);
     input_1[7] = get_word_index(&CONFIG_INPUT.lock().unwrap()[8]);
     input_1[8] = get_word_index(&CONFIG_INPUT.lock().unwrap()[9]);
+    input_1[9] = input_1[0];
 
     // 构建2048个索引
     let mut input_2048 = Vec::new();
     let mut i = 0;
     while i < 2048 {
-        input_2048.push(i);
+        if word_index_12.contains(&i) {
+        } else if input_1.contains(&i) {
+        } else {
+            input_2048.push(i);
+        }
         i = i + 1;
     }
 
+    // 填充后12位
+    let mut index = 12;
+    while index > 0 {
+        word_index_12.push(0);
+        index = index - 1;
+    }
     // 构建7个索引
     let input_7 = vec![0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -658,23 +663,25 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
 
     while index_input_1 < input_1.len() {
         let mut index_input_1_change = change(input_1.clone().to_vec(), index_input_1 + 1);
-        println!(" i = {} v = {:?}", index_input_1, index_input_1_change);
         // 对index_input_1所在的位置进行替换
         for (index_, item) in input_2048.iter().enumerate() {
             index_input_1_change[index_input_1] = *item;
-            println!(" i = {} v = {:?}", index_input_1, index_input_1_change);
             // 构建第二层循环
-            let mut index_input_2 = 0;
             let mut input_2 = index_input_1_change.clone();
             input_2.push(0);
-            while index_input_2 < 10 {
+            let mut index_input_2 = 0;
+            while index_input_2 < 11 {
                 let mut index_input_2_change = change(input_2.clone().to_vec(), index_input_2 + 1);
                 for (index_2, item_2) in input_2048.iter().enumerate() {
-                    index_input_2_change[index_input_1] = *item_2;
+                    index_input_2_change[index_input_2] = *item_2;
                     println!("last = {} v = {:?}", index_input_2, index_input_2_change);
                     // 补充最后一个助记词
                     for (index_3, item_3) in input_7.iter().enumerate() {
-                        let word_index_24 = copy(word_index_12.to_vec(), input_5.to_vec());
+                        let mut word_index_24 =
+                            copy(word_index_12.to_vec(), index_input_2_change.to_vec());
+                        word_index_24[23] = *item_3;
+                        println!("word_index_24 v = {:?}", word_index_24);
+
                         let entity = words_index_to_32byte(word_index_24);
 
                         // 拿到最终的助记词索引
@@ -773,7 +780,7 @@ fn remove(input: Vec<u16>, b: Vec<u16>) -> Vec<u16> {
 // 拷贝数据
 fn copy(mut input: Vec<u16>, b: Vec<u16>) -> Vec<u16> {
     let mut i = 12;
-    while i < 24 {
+    while i < 23 {
         input[i] = b[i - 12];
         i = i + 1;
     }
