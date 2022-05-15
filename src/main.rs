@@ -618,7 +618,6 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
 
     //构筑10个元素的数组,其中,前9位填充的是输入的9个助记词
     let mut input_1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 999];
-    let mut input_5 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
     // 填充9个助记词
     input_1[0] = get_word_index(&CONFIG_INPUT.lock().unwrap()[1]);
@@ -653,9 +652,6 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     // 构建7个索引
     let input_7 = vec![0, 1, 2, 3, 4, 5, 6, 7];
 
-    // 移除
-    let ss = input_1.contains(&input_2048[1631]);
-    println!(" iss = {}", ss);
 
     // 构建第一层循环,将第一个未知的助记词循环插入到input_1
     let mut index_input_1 = 0;
@@ -674,13 +670,13 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
                 let mut index_input_2_change = change(input_2.clone().to_vec(), index_input_2 + 1);
                 for (index_2, item_2) in input_2048.iter().enumerate() {
                     index_input_2_change[index_input_2] = *item_2;
-                    println!("last = {} v = {:?}", index_input_2, index_input_2_change);
+                    // println!("last = {} v = {:?}", index_input_2, index_input_2_change);
                     // 补充最后一个助记词
                     for (index_3, item_3) in input_7.iter().enumerate() {
                         let mut word_index_24 =
                             copy(word_index_12.to_vec(), index_input_2_change.to_vec());
                         word_index_24[23] = *item_3;
-                        println!("word_index_24 v = {:?}", word_index_24);
+                        // println!("word_index_24 v = {:?}", word_index_24);
 
                         let entity = words_index_to_32byte(word_index_24);
 
