@@ -8,6 +8,7 @@ use serde::Deserialize;
 use std::env;
 use std::ffi::CString;
 use std::fs;
+use std::ops::Index;
 use std::os::unix::prelude::OsStringExt;
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::Mutex;
@@ -376,6 +377,14 @@ fn main() {
     device_ids.into_par_iter().for_each(move |device_id| {
         mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
     });
+    let mut input = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+    let mut index = 1;
+    while index <= 9 {
+        let v = change(input.to_vec(), index);
+        println!(" i = {} v = {:?}", index, v);
+        index = index + 1;
+    }
 
     // words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
     // test_redis();
@@ -529,7 +538,13 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
 }
 
 fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
-    let word_index_12 = word_to_word_index(&CONFIG_INPUT.lock().unwrap()[0]);
+    let mut word_index_12 = word_to_word_index(&CONFIG_INPUT.lock().unwrap()[0]);
+    // 填充后12位
+    let mut index = 12;
+    while index > 0 {
+        word_index_12.push(0);
+        index = index - 1;
+    }
     let GPU_SIZE = 256000;
 
     println!("word_index_12 = {:?}", word_index_12);
@@ -603,167 +618,88 @@ fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
     // word1.set
     println!("index = {}", word0.next());
 
-    let now = std::time::SystemTime::now();
-
-    // 助记词数据
-    let mut the_data = vec![0u16; 12];
-
     // 数据记数
     let mut count = 0;
 
-    // 生成一个数组
-    let mut input_level: Vec<Word> = Vec::new();
-    input_level.push(word0.clone());
-    input_level.push(word1.clone());
-    input_level.push(word2.clone());
-    input_level.push(word3.clone());
-    input_level.push(word4.clone());
-    input_level.push(word5.clone());
-    input_level.push(word6.clone());
-    input_level.push(word7.clone());
-    input_level.push(word8.clone());
+    //构筑10个元素的数组,其中,前9位填充的是输入的9个助记词
+    let mut input_1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 999];
+    let mut input_5 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    word_index_12 = copy(word_index_12, input_5.to_vec());
 
-    println!("input_level");
-    show(input_level.clone());
-    let mut first_level_index = 9;
-    println!("first_level");
+    // 填充9个助记词
+    input_1[0] = get_word_index(&CONFIG_INPUT.lock().unwrap()[1]);
+    input_1[1] = get_word_index(&CONFIG_INPUT.lock().unwrap()[2]);
+    input_1[2] = get_word_index(&CONFIG_INPUT.lock().unwrap()[3]);
+    input_1[3] = get_word_index(&CONFIG_INPUT.lock().unwrap()[4]);
+    input_1[4] = get_word_index(&CONFIG_INPUT.lock().unwrap()[5]);
+    input_1[5] = get_word_index(&CONFIG_INPUT.lock().unwrap()[6]);
+    input_1[6] = get_word_index(&CONFIG_INPUT.lock().unwrap()[7]);
+    input_1[7] = get_word_index(&CONFIG_INPUT.lock().unwrap()[8]);
+    input_1[8] = get_word_index(&CONFIG_INPUT.lock().unwrap()[9]);
 
-    while (first_level_index >= 0) {
-        let mut first_level = insert(
-            input_level.clone(),
-            first_level_index as usize,
-            word9.clone(),
-        );
+    // 构建2048个索引
+    let mut input_2048 = Vec::new();
+    let mut i = 0;
+    while i < 2048 {
+        input_2048.push(i);
+        i = i + 1;
+    }
 
-        // show(first_level.clone());
+    // 构建7个索引
+    let input_7 = vec![0, 1, 2, 3, 4, 5, 6, 7];
 
-        let mut second_level_index = 10;
-        while (second_level_index >= 0) {
-            let mut second_level = insert(
-                first_level.clone(),
-                second_level_index as usize,
-                word10.clone(),
-            );
-            // show(second_level.clone());
-            word0 = second_level[0].clone();
-            word1 = second_level[1].clone();
-            word2 = second_level[2].clone();
-            word3 = second_level[3].clone();
-            word4 = second_level[4].clone();
-            word5 = second_level[5].clone();
-            word6 = second_level[6].clone();
-            word7 = second_level[7].clone();
-            word8 = second_level[8].clone();
-            word9 = second_level[9].clone();
-            word10 = second_level[10].clone();
-            // 性能测试
-            let mut the_datas: Vec<u8> = Vec::new();
-            while word0.next() {
-                the_data[0] = word0.next_data();
-                word1.set_input(word0.child_input_data());
-                while word1.next() {
-                    the_data[1] = word1.next_data();
-                    word2.set_input(word1.child_input_data());
-                    while word2.next() {
-                        the_data[2] = word2.next_data();
-                        word3.set_input(word2.child_input_data());
-                        while word3.next() {
-                            the_data[3] = word3.next_data();
-                            word4.set_input(word3.child_input_data());
-                            while word4.next() {
-                                the_data[4] = word4.next_data();
-                                word5.set_input(word4.child_input_data());
-                                while word5.next() {
-                                    the_data[5] = word5.next_data();
-                                    word6.set_input(word5.child_input_data());
-                                    while word6.next() {
-                                        the_data[6] = word6.next_data();
-                                        word7.set_input(word6.child_input_data());
-                                        while word7.next() {
-                                            the_data[7] = word7.next_data();
-                                            word8.set_input(word7.child_input_data());
-                                            while word8.next() {
-                                                the_data[8] = word8.next_data();
-                                                word9.set_input(word8.child_input_data());
-                                                while word9.next() {
-                                                    the_data[9] = word9.next_data();
+    // 移除
+    let ss = input_1.contains(&input_2048[1631]);
+    println!(" iss = {}", ss);
 
-                                                    word10.set_input(word9.child_input_data());
-                                                    while word10.next() {
-                                                        the_data[10] = word10.next_data();
-                                                        let mut data_11 = 0;
-                                                        while data_11 <= 7 {
-                                                            the_data[11] = data_11;
-                                                            data_11 = data_11 + 1;
-                                                            let mut word_index_12_copy =
-                                                                word_index_12.clone();
-                                                            let mut index_9 = 0;
-                                                            while index_9 < the_data.len() {
-                                                                word_index_12_copy
-                                                                    .push(the_data[index_9]);
-                                                                index_9 = index_9 + 1;
-                                                            }
+    // 构建第一层循环,将第一个未知的助记词循环插入到input_1
+    let mut index_input_1 = 0;
+    let mut the_datas: Vec<u8> = Vec::new();
 
-                                                            let entity = words_index_to_32byte(
-                                                                word_index_12_copy,
-                                                            );
+    while index_input_1 < input_1.len() {
+        let mut index_input_1_change = change(input_1.clone().to_vec(), index_input_1 + 1);
+        println!(" i = {} v = {:?}", index_input_1, index_input_1_change);
+        // 对index_input_1所在的位置进行替换
+        for (index_, item) in input_2048.iter().enumerate() {
+            index_input_1_change[index_input_1] = *item;
+            println!(" i = {} v = {:?}", index_input_1, index_input_1_change);
+            // 构建第二层循环
+            let mut index_input_2 = 0;
+            let mut input_2 = index_input_1_change.clone();
+            input_2.push(0);
+            while index_input_2 < 10 {
+                let mut index_input_2_change = change(input_2.clone().to_vec(), index_input_2 + 1);
+                for (index_2, item_2) in input_2048.iter().enumerate() {
+                    index_input_2_change[index_input_1] = *item_2;
+                    println!("last = {} v = {:?}", index_input_2, index_input_2_change);
+                    // 补充最后一个助记词
+                    for (index_3, item_3) in input_7.iter().enumerate() {
+                        let word_index_24 = copy(word_index_12.to_vec(), input_5.to_vec());
+                        let entity = words_index_to_32byte(word_index_24);
 
-                                                            // 拿到最终的助记词索引
+                        // 拿到最终的助记词索引
 
-                                                            if count < GPU_SIZE {
-                                                                count = count + 1;
-                                                                let mut index_32: u16 = 0;
-                                                                while index_32 < 32 {
-                                                                    the_datas.push(
-                                                                        entity[index_32 as usize],
-                                                                    );
-                                                                    index_32 = index_32 + 1;
-                                                                }
-                                                                // tx.send(the_datas.clone()).unwrap();
-                                                                // the_datas.clear();
-                                                                // thread::sleep(Duration::from_millis(100));
-
-                                                                // println!("llen = {}", the_datas.len())
-                                                            } else {
-                                                                count = 0;
-                                                                // println!(
-                                                                //     "RUST use time {:?}, len = {}",
-                                                                //     now.elapsed().expect(""),
-                                                                //     the_datas.len()
-                                                                // );
-
-                                                                // println!("the_datas() = {:?}", the_datas);
-
-                                                                tx.send(the_datas.clone()).unwrap();
-                                                                the_datas.clear();
-                                                                // thread::sleep(Duration::from_millis(
-                                                                //     1000000000,
-                                                                // ));
-                                                            }
-                                                            // println!("the data = {:?}", the_data);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                        if count < GPU_SIZE {
+                            count = count + 1;
+                            let mut index_32: u16 = 0;
+                            while index_32 < 32 {
+                                the_datas.push(entity[index_32 as usize]);
+                                index_32 = index_32 + 1;
                             }
+                        } else {
+                            count = 0;
+                            tx.send(the_datas.clone()).unwrap();
+                            the_datas.clear();
                         }
                     }
                 }
-                // println!("the child data = {:?}", word0.output);
+                index_input_2 = index_input_2 + 1;
             }
-
-            tx.send(the_datas).unwrap();
-
-            second_level_index = second_level_index - 1;
         }
-
-        // first_level.as_mut()
-
-        first_level_index = first_level_index - 1;
+        index_input_1 = index_input_1 + 1;
     }
+
+    tx.send(the_datas).unwrap();
 }
 
 // 插入排序
@@ -799,6 +735,49 @@ fn show(input: Vec<Word>) {
         i = i + 1;
     }
     println!("")
+}
+
+// 数组从某个索引开始,把数据往后移动
+//
+/**
+ * [1,2,3,4,5,#]
+ * index = 0
+ * [input,1,2,3,4,5]
+ * index = 5
+ * [1,2,3,4,5,input]
+ */
+// 末移法
+fn change<T>(mut input: Vec<T>, index: usize) -> Vec<T> {
+    let mut i = input.len();
+    while i > index {
+        input.swap(i - 2, i - 1);
+        i = i - 1;
+    }
+    return input;
+}
+
+// 数组a中移除数组b中的元素
+fn remove(input: Vec<u16>, b: Vec<u16>) -> Vec<u16> {
+    let mut i = input.len();
+    let mut stack = Vec::new();
+
+    while i >= 0 {
+        if (!b.contains(&b[i])) {
+            stack.push(input[i]);
+        }
+        i = i - 1;
+    }
+    return input;
+}
+
+// 拷贝数据
+fn copy(mut input: Vec<u16>, b: Vec<u16>) -> Vec<u16> {
+    let mut i = 12;
+    while i < 24 {
+        input[i] = b[i - 12];
+        i = i + 1;
+    }
+    return input;
 }
 
 // 18 kB
