@@ -170,25 +170,24 @@ fn mnemonic_gpu(
     let queue = core::create_command_queue(&context, &device_id, None).unwrap();
 
     // 在这里加载所有的代码
-    let (tx, rx) = mpsc::sync_channel(1000);
-
-    let handle = thread::spawn(move || {
-        create_words_from_file(tx.clone());
-        // thread::sleep(Duration::from_millis(100));
-        println!("create finsh... ...");
-    });
 
     let address = create_address();
 
     let mut receive_num = 0;
 
-    loop {
-        let received = rx.recv().unwrap();
-        println!(
-            "the received.len = {} receive_num = {}",
-            received.len() / 32,
-            receive_num
-        );
+    let mut index = 0;
+    while (index < 9) {
+        let input_entropy_buf = create_words_from_file(index);
+        // println!(
+        //     "the received.len = {} receive_num = {}",
+        //     received.len() / 32,
+        //     receive_num
+        // );
+        index = index + 1;
+
+        if (index < 100) {
+            continue;
+        }
 
         receive_num = receive_num + 1;
 
@@ -199,8 +198,8 @@ fn mnemonic_gpu(
         //     println!("RUST flag > 1");
         // }
 
-        let input_entropy_size: cl_ulong = (received.len() as u64 / 32);
-        let items: u64 = input_entropy_size;
+        let input_entropy_size: cl_ulong = index as u64;
+        let items: u64 = 8589934592;
 
         let mut out_mnemonic = vec![0u8; 256];
 
@@ -208,8 +207,8 @@ fn mnemonic_gpu(
             core::create_buffer(
                 &context,
                 flags::MEM_WRITE_ONLY | flags::MEM_COPY_HOST_PTR,
-                received.len(),
-                Some(&received),
+                24,
+                Some(&input_entropy_buf),
             )?
         };
 
@@ -242,7 +241,6 @@ fn mnemonic_gpu(
         core::set_kernel_arg(&kernel, 1, ArgVal::mem(&input_entropy_buf))?;
         core::set_kernel_arg(&kernel, 2, ArgVal::mem(&input_address_buf))?;
         core::set_kernel_arg(&kernel, 3, ArgVal::mem(&out_mnemonic_buf))?;
-
         unsafe {
             core::enqueue_kernel(
                 &queue,
@@ -299,6 +297,8 @@ fn mnemonic_gpu(
         // assert!(flag < 1);
         // println!("RUST this assert ");
     }
+
+    loop {}
 }
 
 fn main() {
@@ -377,14 +377,6 @@ fn main() {
     device_ids.into_par_iter().for_each(move |device_id| {
         mnemonic_gpu(platform_id, device_id, src_cstring.clone(), &kernel_name).unwrap()
     });
-    let mut input = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-    let mut index = 1;
-    while index <= 9 {
-        let v = change(input.to_vec(), index);
-        println!(" i = {} v = {:?}", index, v);
-        index = index + 1;
-    }
 
     // words_to_32byte("anger stem hobby giraffe cable source episode remove border acquire connect brief syrup stay success badge angry ahead fame tone seat arm army basic");
     // test_redis();
@@ -537,172 +529,48 @@ fn words_index_to_32byte(input_word_index: Vec<u16>) -> Vec<u8> {
     entropy
 }
 
-fn create_words_from_file(tx: SyncSender<Vec<u8>>) {
+fn create_words_from_file(index_input: usize) -> Vec<u16> {
     let mut word_index_12 = word_to_word_index(&CONFIG_INPUT.lock().unwrap()[0]);
 
-    let GPU_SIZE = 256000;
-
     println!("word_index_12 = {:?}", word_index_12);
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[1]));
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[2]));
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[3]));
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[4]));
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[5]));
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[6]));
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[7]));
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[8]));
+    // println!("word_index_12 = {:?}",  get_word_index(&CONFIG_INPUT.lock().unwrap()[9]));
 
-    // 初始化
-    let mut input: Vec<u16> = Vec::new();
     let mut i: u16 = 0;
-    while i < 11 {
-        input.push(i);
+    // 扩充到24个助记词
+    while i < 12 {
+        word_index_12.push(i);
         i = i + 1;
     }
 
-    // if i > 0 {
-    //     return;
-    // }
+    // 填充最后一个助记词
+    word_index_12[23] = get_word_index(&CONFIG_INPUT.lock().unwrap()[9]);
 
-    // 从外部加载每个助记词的input
-    let mut word0 = Word::default();
-    let mut word1 = Word::default();
-    let mut word2 = Word::default();
-    let mut word3 = Word::default();
-    let mut word4 = Word::default();
-    let mut word5 = Word::default();
-    let mut word6 = Word::default();
-    let mut word7 = Word::default();
-    let mut word8 = Word::default();
-    let mut word9 = Word::default();
-    let mut word10 = Word::default();
-    let mut word11 = Word::default();
-
-    word0.set_input(input);
-    word0.show_input();
-    // 9个助记词的备选词
-    word0.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[1]);
-    word1.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[2]);
-    word2.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[3]);
-    word3.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[4]);
-    word4.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[5]);
-    word5.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[6]);
-    word6.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[7]);
-    word7.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[8]);
-    word8.set_optional_from_str(&CONFIG_INPUT.lock().unwrap()[9]);
-    // 第10个助记词的备选词是2048个单词
-    word9.set_optional_all();
-    // 第11个助记词的备选词的2048的几分之几,分母是GPU的数量
-    word10.set_optional_for_group(&CONFIG_INPUT.lock().unwrap()[10]);
-    // 第12个助记词的备选是1,2,3,4,5,6,7
-    word11.set_optional(vec![1, 2, 3, 4, 5, 6, 7]);
-
-    WORDS.lock().unwrap().push(word0.optional.clone());
-    WORDS.lock().unwrap().push(word1.optional.clone());
-    WORDS.lock().unwrap().push(word2.optional.clone());
-    WORDS.lock().unwrap().push(word3.optional.clone());
-    WORDS.lock().unwrap().push(word4.optional.clone());
-    WORDS.lock().unwrap().push(word5.optional.clone());
-    WORDS.lock().unwrap().push(word6.optional.clone());
-    WORDS.lock().unwrap().push(word7.optional.clone());
-    WORDS.lock().unwrap().push(word8.optional.clone());
-    WORDS.lock().unwrap().push(word9.optional.clone());
-    WORDS.lock().unwrap().push(word10.optional.clone());
-    WORDS.lock().unwrap().push(word11.optional.clone());
-
-    let mut the_i = 0;
-    while the_i < 12 {
-        println!("WORDS{} = {:?}", the_i, WORDS.lock().unwrap()[the_i]);
-        the_i = the_i + 1;
-    }
-
-    println!("len = {}", WORDS.lock().unwrap().len());
-
-    // word1.set
-    println!("index = {}", word0.next());
-
-    // 数据记数
-    let mut count = 0;
-
-    //构筑10个元素的数组,其中,前9位填充的是输入的9个助记词
-    let mut input_1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 999];
-
-    // 填充9个助记词
-    input_1[0] = get_word_index(&CONFIG_INPUT.lock().unwrap()[1]);
-    input_1[1] = get_word_index(&CONFIG_INPUT.lock().unwrap()[2]);
-    input_1[2] = get_word_index(&CONFIG_INPUT.lock().unwrap()[3]);
-    input_1[3] = get_word_index(&CONFIG_INPUT.lock().unwrap()[4]);
-    input_1[4] = get_word_index(&CONFIG_INPUT.lock().unwrap()[5]);
-    input_1[5] = get_word_index(&CONFIG_INPUT.lock().unwrap()[6]);
-    input_1[6] = get_word_index(&CONFIG_INPUT.lock().unwrap()[7]);
-    input_1[7] = get_word_index(&CONFIG_INPUT.lock().unwrap()[8]);
-    input_1[8] = get_word_index(&CONFIG_INPUT.lock().unwrap()[9]);
-    input_1[9] = input_1[0];
-
-    // 构建2048个索引
-    let mut input_2048 = Vec::new();
-    let mut i = 0;
-    while i < 2048 {
-        if word_index_12.contains(&i) {
-        } else if input_1.contains(&i) {
+    // 根据index,填充剩余元素
+    let mut index = 0;
+    while index < 9 {
+        if (index >= index_input) {
+            word_index_12[12 + index + 3] =
+                get_word_index(&CONFIG_INPUT.lock().unwrap()[index + 1]);
         } else {
-            input_2048.push(i);
+            word_index_12[12 + index] = get_word_index(&CONFIG_INPUT.lock().unwrap()[index + 1]);
         }
-        i = i + 1;
+        word_index_12[12 + index_input] = 0;
+        word_index_12[12 + index_input + 1] = 0;
+        word_index_12[12 + index_input + 2] = 0;
+        index = index + 1;
     }
 
-    // 填充后12位
-    let mut index = 12;
-    while index > 0 {
-        word_index_12.push(0);
-        index = index - 1;
-    }
-    // 构建7个索引
-    let input_7 = vec![0, 1, 2, 3, 4, 5, 6, 7];
-
-
-    // 构建第一层循环,将第一个未知的助记词循环插入到input_1
-    let mut index_input_1 = 0;
-    let mut the_datas: Vec<u8> = Vec::new();
-
-    while index_input_1 < input_1.len() {
-        let mut index_input_1_change = change(input_1.clone().to_vec(), index_input_1 + 1);
-        // 对index_input_1所在的位置进行替换
-        for (index_, item) in input_2048.iter().enumerate() {
-            index_input_1_change[index_input_1] = *item;
-            // 构建第二层循环
-            let mut input_2 = index_input_1_change.clone();
-            input_2.push(0);
-            let mut index_input_2 = 0;
-            while index_input_2 < 11 {
-                let mut index_input_2_change = change(input_2.clone().to_vec(), index_input_2 + 1);
-                for (index_2, item_2) in input_2048.iter().enumerate() {
-                    index_input_2_change[index_input_2] = *item_2;
-                    // println!("last = {} v = {:?}", index_input_2, index_input_2_change);
-                    // 补充最后一个助记词
-                    for (index_3, item_3) in input_7.iter().enumerate() {
-                        let mut word_index_24 =
-                            copy(word_index_12.to_vec(), index_input_2_change.to_vec());
-                        word_index_24[23] = *item_3;
-                        // println!("word_index_24 v = {:?}", word_index_24);
-
-                        let entity = words_index_to_32byte(word_index_24);
-
-                        // 拿到最终的助记词索引
-
-                        if count < GPU_SIZE {
-                            count = count + 1;
-                            let mut index_32: u16 = 0;
-                            while index_32 < 32 {
-                                the_datas.push(entity[index_32 as usize]);
-                                index_32 = index_32 + 1;
-                            }
-                        } else {
-                            count = 0;
-                            tx.send(the_datas.clone()).unwrap();
-                            the_datas.clear();
-                        }
-                    }
-                }
-                index_input_2 = index_input_2 + 1;
-            }
-        }
-        index_input_1 = index_input_1 + 1;
-    }
-
-    tx.send(the_datas).unwrap();
+    // 构建24个元素
+    println!("word_index_12 = {:?}", word_index_12);
+    return word_index_12;
 }
 
 // 插入排序

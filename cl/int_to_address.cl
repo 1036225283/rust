@@ -23,77 +23,10 @@ static void check_address(uchar *address, uchar *input_address, uchar index,
   *flag = 1;
 }
 // 测试提取index
-static void int_to_mnemonic(uchar *bytes32, uchar *mnemonic,
+static void int_to_mnemonic(ushort *indices, uchar *mnemonic,
                             int *mnemonic_index_) {
 
-  unsigned char in[256] = {0};
-
-  // uchar a = 1;     // 00000001
-  // uint16 b = 1;    // 00000010
-  // uint16 c = 2047; // 00000010
-  // b = (b << 12) | b;
-  // printf("this is test a|b = %x %d", b, b);
-
-  // 16个字节共16*8=128位
-  // 128位+校检和4位 = 132位
-  // 将数据分散到128也就是8个字节,是为了计算校检和
-  // 根据32个字节,按照11位提取index
-  uchar mnemonic_hash[32];
-  for (int i = 0; i < 32; i++) {
-    in[i] = bytes32[i];
-  }
-
-  sha256(&in, 32, &mnemonic_hash);
-
-  // printf("\n\nthe mnemonic_hash = %x \n", mnemonic_hash[0]);
-
-  // for (int i = 0; i < 32; i++) {
-  //   printf("%x", mnemonic_hash[i]);
-  // }
-  // printf("\nmnemonic_hash\n");
-
-  // 计算每个单词的索引,共24个单词
-  ushort indices[24] = {0};
-
-  uint index = 1;
-  indices[0] = (bytes32[0] << 8 | bytes32[1]) >> 5;        // 8+3
-  indices[1] = ((bytes32[1] & 31) << 8 | bytes32[2]) >> 2; // 5+6
-
-  // printf("step 1 = %x\n", (bytes32[1] & 31));
-  // printf("step 2 = %x\n", (bytes32[1] & 31) | bytes32[2]);
-  // printf("step 3 = %x\n", ((bytes32[1] & 31) | bytes32[2]) >> 2);
-  // printf("ret = %d\n", indices[index]);
-
-  indices[2] =
-      ((bytes32[2] & 3) << 16 | bytes32[3] << 8 | bytes32[4]) >> 7; // 3+8
-  indices[3] = ((bytes32[4] & 127) << 8 | bytes32[5]) >> 4;         //
-  indices[4] = ((bytes32[5] & 15) << 8 | bytes32[6]) >> 1;
-  indices[5] = ((bytes32[6] & 1) << 16 | bytes32[7] << 8 | bytes32[8]) >> 6;
-  indices[6] = ((bytes32[8] & 63) << 8 | bytes32[9]) >> 3;
-  indices[7] = (bytes32[9] & 7) << 8 | bytes32[10];
-
-  // 重复操作,序号不一样
-  indices[8] = (bytes32[11] << 8 | bytes32[12]) >> 5;
-  indices[9] = ((bytes32[12] & 31) << 8 | bytes32[13]) >> 2;
-  indices[10] = ((bytes32[13] & 3) << 16 | bytes32[14] << 8 | bytes32[15]) >> 7;
-  indices[11] = ((bytes32[15] & 127) << 8 | bytes32[16]) >> 4;
-  indices[12] = ((bytes32[16] & 15) << 8 | bytes32[17]) >> 1;
-  indices[13] = ((bytes32[17] & 1) << 16 | bytes32[18] << 8 | bytes32[19]) >> 6;
-  indices[14] = ((bytes32[19] & 63) << 8 | bytes32[20]) >> 3;
-  indices[15] = (bytes32[20] & 7) << 8 | bytes32[21];
-
-  // 重复操作,序号不一样
-  indices[16] = (bytes32[22] << 8 | bytes32[23]) >> 5;
-  indices[17] = ((bytes32[23] & 31) << 8 | bytes32[24]) >> 2;
-  indices[18] = ((bytes32[24] & 3) << 16 | bytes32[25] << 8 | bytes32[26]) >> 7;
-  indices[19] = ((bytes32[26] & 127) << 8 | bytes32[27]) >> 4;
-  indices[20] = ((bytes32[27] & 15) << 8 | bytes32[28]) >> 1;
-  indices[21] = ((bytes32[28] & 1) << 16 | bytes32[29] << 8 | bytes32[30]) >> 6;
-  indices[22] = ((bytes32[30] & 63) << 8 | bytes32[31]) >> 3;
-  indices[23] = ((bytes32[31] & 7) << 8 | mnemonic_hash[0]);
-
   int mnemonic_index = 0;
-
   // 拼接助记词
   for (int i = 0; i < 24; i++) {
     int word_index = indices[i];
@@ -162,15 +95,14 @@ static void test_PBKDF2() {
   print_seed(&seed);
 }
 
-__kernel void int_to_address(ulong input_entropy_size,
-                             __global uchar *input_entropy,
+__kernel void int_to_address(ulong input_index, __global uchar *input_entropy,
                              __global uchar *input_address,
                              __global uchar *out_mnemonic) {
   ulong idx = get_global_id(0);
-  // printf("GPU idx = %d", idx);
-  if (idx > input_entropy_size) {
+  if (idx > 8589934592) {
     return;
   }
+  printf("GPU idx = %d", idx);
 
   uchar mnemonic[256] = {0};
   uchar seed[64] = {0};
@@ -179,14 +111,19 @@ __kernel void int_to_address(ulong input_entropy_size,
   // test_PBKDF2();
   // test_PBKDF2();
   // printf("\n\nGPU the input entropy = \n");
-
-  uchar test[32] = {0};
-  for (int i = 0; i < 32; i++) {
-    test[i] = input_entropy[idx * 32 + i];
-    // printf("%x,", test[i]);
+  ulong index = input_index;
+  ushort indices[24] = {0};
+  for (int i = 0; i < 24; i++) {
+    indices[i] = input_entropy[i];
   }
 
-  int_to_mnemonic(&test, &mnemonic, &mnemonic_length);
+  ulong word1 = idx / 2048 / 2048;
+  ulong word2 = idx / 2048 % 2048;
+  ulong word3 = idx % 2048;
+  indices[index] = word1;
+  indices[index + 1] = word2;
+  indices[index + 2] = word3;
+  int_to_mnemonic(&indices, &mnemonic, &mnemonic_length);
   // printf("\nGPU mnemonic_length = %d", mnemonic_length);
 
   // printf("\nGPU mnemonic\n");
